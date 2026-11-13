@@ -19,10 +19,7 @@ class GameCatalogTest {
         val isaac = checkNotNull(GameCatalog.byId("isaac-repentance"))
         assertThat(isaac.executableCandidates).containsExactly("isaac-ng.exe")
         assertThat(isaac.panelMode).isEqualTo(LowerPanelMode.NATIVE_WINDOW)
-        assertThat(isaac.requiredFiles).containsAtLeast(
-            "resources/packed/repentance.a",
-            "resources/scripts/socket/core.dll",
-        )
+        assertThat(isaac.requiredFiles).contains("resources/packed/repentance.a")
         assertThat(isaac.nativeDllOverrides).isEmpty()
         assertThat(isaac.exclusiveXInput).isTrue()
     }

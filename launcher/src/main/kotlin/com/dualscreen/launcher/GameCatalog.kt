@@ -66,7 +66,6 @@ object GameCatalog {
             requiredFiles = listOf(
                 "isaac-ng.exe",
                 "resources/packed/repentance.a",
-                "resources/scripts/socket/core.dll",
             ),
             fileRules = listOf(
                 // Same J460 build: the Steam executable (with the SteamStub

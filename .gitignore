@@ -50,3 +50,6 @@ keystore.properties
 /pc/mods/**/*.lib
 /pc/mods/**/*.exp
 /pc/mods/**/*.ilk
+
+# Personal game copy embedded into local APK builds only. Never commit.
+/launcher/bundled-game/

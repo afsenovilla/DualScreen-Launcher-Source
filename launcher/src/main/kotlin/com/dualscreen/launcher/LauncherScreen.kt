@@ -178,7 +178,14 @@ internal fun LauncherScreen(
                                 saveProgress = saveProgress[game.id],
                                 operationBusy = operationBusy,
                                 onBack = null,
-                                onInstall = { chooseGameArchive(game) },
+                                onInstall = {
+                                    if (model.hasBundledGame && installed[game.id] == null) {
+                                        model.installBundled(game)
+                                    } else {
+                                        chooseGameArchive(game)
+                                    }
+                                },
+                                bundledGame = model.hasBundledGame,
                                 onImportSave = {
                                     installed[game.id]?.let { chooseSaveArchive(game, it) }
                                 },

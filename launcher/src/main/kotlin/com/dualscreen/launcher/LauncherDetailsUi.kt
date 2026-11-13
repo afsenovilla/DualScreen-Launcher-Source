@@ -55,6 +55,7 @@ internal fun GameDetailsPage(
     onImportSave: () -> Unit,
     onPlay: () -> Unit,
     onConfigure: () -> Unit,
+    bundledGame: Boolean = false,
 ) {
     val state = resolveGameInstallState(installed, progress, saveProgress)
     val busy = operationBusy ||
@@ -144,6 +145,7 @@ internal fun GameDetailsPage(
                         onImportSave = onImportSave,
                         onPlay = onPlay,
                         onConfigure = onConfigure,
+                        bundledGame = bundledGame,
                     )
                     SetupFeedback(
                         game = game,
@@ -295,6 +297,7 @@ private fun ActionPanel(
     onImportSave: () -> Unit,
     onPlay: () -> Unit,
     onConfigure: () -> Unit,
+    bundledGame: Boolean = false,
 ) {
     val ready = installed != null
     val launcherAvailable = installed?.let { readyGame ->
@@ -303,11 +306,13 @@ private fun ActionPanel(
     LauncherCard(modifier = Modifier.animateContentSize()) {
         SectionTitle(
             if (ready) "Jugar y gestionar" else "Instalar el juego",
-            if (ready) "Launch, update, or import a save" else "Choose the ZIP containing your game files",
+            if (ready) "Juega, actualiza o importa partidas"
+            else if (bundledGame) "El juego viene incluido en la app"
+            else "Elige el ZIP con los archivos del juego",
         )
         if (!ready) {
             PrimaryAction(
-                label = "Elegir ZIP del juego",
+                label = if (bundledGame) "Instalar juego" else "Elegir ZIP del juego",
                 icon = Icons.Default.FolderZip,
                 onClick = onInstall,
                 enabled = !busy,

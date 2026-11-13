@@ -15,6 +15,8 @@ val releaseSigningProperties = Properties().apply {
 val filteredLauncherAssets = layout.buildDirectory.dir("generated/filteredLauncherAssets")
 val prepareFilteredLauncherAssets by tasks.registering(Sync::class) {
     from(layout.projectDirectory.dir("src/main/assets"))
+    // Optional personal game copy (git-ignored): launcher/bundled-game/game/isaac.zip
+    from(layout.projectDirectory.dir("bundled-game"))
     into(filteredLauncherAssets)
 }
 
@@ -65,7 +67,7 @@ android {
     }
 
     buildFeatures { buildConfig = true }
-    androidResources { noCompress += listOf("tzst", "zst", "tgz", "so", "dat", "dll") }
+    androidResources { noCompress += listOf("tzst", "zst", "tgz", "so", "dat", "dll", "zip") }
     // AndroidSourceDirectorySet's exclude filter is not applied by AGP's asset
     // merger. Stage a filtered tree instead, otherwise stale native payloads
     // silently ship inside every APK. Isaac bundles its native mod and assets.

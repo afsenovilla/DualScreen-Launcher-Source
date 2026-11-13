@@ -11,6 +11,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 sealed interface ArchiveReviewState {
     data object Idle : ArchiveReviewState
@@ -39,6 +42,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var pendingUntestedArchive: Pair<SupportedGame, Uri>? = null
     private val mutableArchiveReview = MutableStateFlow<ArchiveReviewState>(ArchiveReviewState.Idle)
     val archiveReview: StateFlow<ArchiveReviewState> = mutableArchiveReview.asStateFlow()
+
+    /** A personal game copy packaged into this APK (assets/game/isaac.zip), if any. */
+    val hasBundledGame: Boolean = runCatching {
+        app.assets.open(BUNDLED_GAME_ASSET).close()
+        true
+    }.getOrDefault(false)
+    private var bundledArchive: File? = null
 
     private val mutableGpuDriverMessage = MutableStateFlow<String?>(null)
     val gpuDriverMessage: StateFlow<String?> = mutableGpuDriverMessage.asStateFlow()
@@ -113,6 +123,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     game.id,
                     failure.message ?: "The selected ZIP could not be validated",
                 )
+                releaseBundledArchive()
                 archiveOperationInFlight.set(false)
                 return@launch
             }
@@ -125,6 +136,39 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Installs the game packaged in the APK through the normal ZIP installer. */
+    fun installBundled(game: SupportedGame) {
+        if (!hasBundledGame || payloadState.value !is PayloadBootstrapState.Ready) return
+        if (archiveOperationInFlight.get()) return
+        mutableArchiveReview.value = ArchiveReviewState.Inspecting(game.id)
+        viewModelScope.launch {
+            val archive = runCatching {
+                withContext(Dispatchers.IO) {
+                    val target = File(app.cacheDir, "bundled-game.zip")
+                    target.delete()
+                    app.assets.open(BUNDLED_GAME_ASSET).use { input ->
+                        target.outputStream().use { output -> input.copyTo(output, 1 shl 20) }
+                    }
+                    target
+                }
+            }.getOrElse { failure ->
+                mutableArchiveReview.value = ArchiveReviewState.Rejected(
+                    game.id,
+                    "No se pudo preparar el juego incluido: ${failure.message}",
+                )
+                return@launch
+            }
+            bundledArchive = archive
+            mutableArchiveReview.value = ArchiveReviewState.Idle
+            install(game, Uri.fromFile(archive))
+        }
+    }
+
+    private fun releaseBundledArchive() {
+        bundledArchive?.delete()
+        bundledArchive = null
+    }
+
     fun continueUntestedInstall() {
         val pending = pendingUntestedArchive ?: return
         pendingUntestedArchive = null
@@ -135,6 +179,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun dismissArchiveReview() {
+        releaseBundledArchive()
         pendingUntestedArchive = null
         mutableArchiveReview.value = ArchiveReviewState.Idle
         archiveOperationInFlight.set(false)
@@ -150,6 +195,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             app.installer.install(game, archive, allowUntestedVersion)
             mutableInstalled.value = app.registry.all()
         } finally {
+            releaseBundledArchive()
             archiveOperationInFlight.set(false)
         }
     }
@@ -214,5 +260,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 synchronizeInstalledMods()
             }
         }
+    }
+
+    private companion object {
+        const val BUNDLED_GAME_ASSET = "game/isaac.zip"
     }
 }
