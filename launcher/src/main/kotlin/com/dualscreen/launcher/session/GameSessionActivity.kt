@@ -41,7 +41,6 @@ import com.dualscreen.launcher.SkyrimGamepadConfiguration
 import com.dualscreen.launcher.Ac2GamepadConfiguration
 import com.dualscreen.launcher.WfcPrerequisiteConfiguration
 import com.dualscreen.launcher.WfcDisplayConfiguration
-import com.dualscreen.launcher.access.AccessState
 import com.dualscreen.launcher.resolveConfigurationLauncherExecutable
 import com.dualscreen.launcher.supportedGameLaunchEnvironment
 import com.dualscreen.launcher.supportedGameTranslatorExtras
@@ -200,14 +199,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         launchStatus.record("LOG", "Persistent launch log: ${logFile.absolutePath}")
         launchStartedAt = android.os.SystemClock.elapsedRealtime()
         lifecycleScope.launch {
-            updateStatus("VERIFYING ACCESS", "Checking Patreon membership or owner entitlement")
-            val accessState = app.access.verifyNow()
-            if (accessState !is AccessState.Granted) {
-                launchStatus.record("ACCESS", "Launch denied: ${accessState.message}")
-                finishWithMessage(accessState.message)
-                return@launch
-            }
-            launchStatus.record("ACCESS", "Launch granted by ${accessState.source.name.lowercase()}")
             startGame(game, containerId, shortcutPath, configurationLauncher)
         }
     }

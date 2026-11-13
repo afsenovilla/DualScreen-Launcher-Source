@@ -1,12 +1,9 @@
 package com.dualscreen.launcher
 
 import android.app.Application
-import com.dualscreen.launcher.access.AccessActivityEnforcer
-import com.dualscreen.launcher.access.AccessManager
 import com.dualscreen.launcher.switch.EdenSwitchBackend
 
 class DualScreenLauncherApplication : Application() {
-    val access by lazy { AccessManager(this) }
     val settings by lazy { LauncherSettingsStore(this) }
     internal val payloads by lazy { PayloadBootstrapper(this) }
     internal val updates by lazy { LauncherUpdateChecker(this) }
@@ -16,9 +13,4 @@ class DualScreenLauncherApplication : Application() {
     val saveImporter by lazy { SaveImporter(this) }
     val launchStatus by lazy { LaunchStatusStore(this) }
     val switchBackend by lazy { EdenSwitchBackend(this) }
-
-    override fun onCreate() {
-        super.onCreate()
-        registerActivityLifecycleCallbacks(AccessActivityEnforcer(this, access))
-    }
 }

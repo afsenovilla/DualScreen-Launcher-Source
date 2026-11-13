@@ -10,25 +10,6 @@ remains the only frontend: PC titles use the existing container engine, while
 Switch titles run through Eden's native core and dual-display runtime without
 requiring or launching a separate emulator application.
 
-## Supporter access
-
-The app is fail-closed behind the entitlement service in [`backend`](backend).
-On each cold launch it requires either a currently active, qualifying Patreon
-membership or a non-revoked entitlement created by redeeming an owner-issued
-one-time code. It revalidates every 15 minutes while any launcher, PC session,
-or embedded Switch activity is in use. Network errors, revoked OAuth access,
-inactive/declined/cancelled memberships, invalid codes, and revoked grants lock
-the app.
-
-Patreon authorization codes and access/refresh tokens are handled only by the
-service. One-time codes are generated there, stored only as keyed hashes, and
-consumed in the same D1 transaction that creates their entitlement. The APK
-contains only an HTTPS service URL, an ES256 public verification key, and an
-opaque installation session encrypted by Android Keystore. See
-[`backend/README.md`](backend/README.md) for Patreon setup, deployment, key
-generation, code administration, revocation, and the client-side patching
-boundary.
-
 All supported-game implementation source is now kept inside this project:
 PC mod sources live under [`pc/mods`](pc/mods), while Eden DS and its Switch
 dual-screen implementations live under
@@ -152,14 +133,6 @@ to reproduce release packs and their bootstrap manifest.
 ## Build and verify
 
 Use JDK 17 and an Android SDK configured in `local.properties`:
-
-Configure the two non-secret access settings in your user-level Gradle
-properties. A build with either value missing remains locked:
-
-```properties
-accessApiBaseUrl=https://YOUR_ACCESS_DOMAIN
-accessLeasePublicKey=UNPADDED_BASE64URL_X509_PUBLIC_KEY
-```
 
 ```powershell
 .\gradlew.bat :launcher:testDebugUnitTest :launcher:assembleDebug

@@ -20,12 +20,6 @@ externalNativeBuild/
 /$out/
 /UmodelSaved/
 /stdout
-/backend/node_modules/
-/backend/.wrangler/
-/backend/.dev.vars
-/backend/.env
-/backend/.env.*
-!/backend/.env.example
 /launcher/src/main/assets/mods/*/payload/
 keystore.properties
 *.jks
