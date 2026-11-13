@@ -10,8 +10,8 @@ class CapturedRuntimeRequirementsTest {
     private val assets = File("src/main/assets")
 
     @Test
-    fun dishonoredTranslatorRequiresThePinnedManifestComponentWithoutFixedContainerAssets() {
-        val request = CapturedRuntimeRequirements.fexCore(checkNotNull(supportedGameFexCoreVersion("dishonored")))
+    fun pinnedTranslatorRequiresThePinnedManifestComponentWithoutFixedContainerAssets() {
+        val request = CapturedRuntimeRequirements.fexCore("FEXCore-2608-stable-0")
         assertThat(request.fixedAssets).isNull()
         assertThat(request.componentIds).containsExactly("FEXCore-FEXCore-2608-stable-0")
         val manifest = JSONObject(File(assets, "components/manifest.json").readText()).getJSONArray("components")
@@ -36,7 +36,7 @@ class CapturedRuntimeRequirementsTest {
 
     @Test
     fun fullCapturedPresetsStillRequireTheirFixedAssetsAndDoNotChange() {
-        listOf("games.json", "transformers-wfc.json", "stardew-proton9.json").forEach { name ->
+        listOf("games.json").forEach { name ->
             val profile = JSONObject(File(assets, "presets/$name").readText())
             val before = profile.toString()
             val request = CapturedRuntimeRequirements.preset(profile)

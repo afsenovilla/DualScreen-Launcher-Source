@@ -73,8 +73,7 @@ internal val LauncherTextMuted = Color(0xFFA09D92)
 @Composable
 internal fun LauncherHeader(
     selected: LauncherNavItem,
-    onPcGames: () -> Unit,
-    onGuide: () -> Unit,
+    onHome: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Row(
@@ -116,21 +115,14 @@ internal fun LauncherHeader(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.7.sp,
             )
-            Text("Launcher", fontSize = 17.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("Isaac", fontSize = 17.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.weight(1f))
         HeaderDestination(
-            label = "Games",
+            label = "Play",
             icon = Icons.Default.SportsEsports,
-            selected = selected == LauncherNavItem.PC_GAMES,
-            onClick = onPcGames,
-        )
-        Spacer(Modifier.width(4.dp))
-        HeaderDestination(
-            label = "Guide",
-            icon = Icons.AutoMirrored.Filled.MenuBook,
-            selected = selected == LauncherNavItem.GUIDE,
-            onClick = onGuide,
+            selected = selected != LauncherNavItem.SETTINGS,
+            onClick = onHome,
         )
         Spacer(Modifier.width(4.dp))
         HeaderDestination(

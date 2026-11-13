@@ -390,6 +390,34 @@ bool ParseProgress(const std::vector<std::string_view>& fields, LiveState* state
   next.received=true; state->progress=std::move(next); return true;
 }
 
+bool ParseDescriptions(const std::vector<std::string_view>& fields,
+                       LiveState* state) {
+  constexpr size_t kMaximumDescriptions = 160;
+  size_t count = 0;
+  if (fields.size() != 6 ||
+      !ParseRecordCount(fields[4], kMaximumDescriptions, &count))
+    return false;
+  DescriptionState next;
+  const auto records = count == 0 ? std::vector<std::string_view>{}
+                                  : Split(fields[5], ';', kMaximumDescriptions + 1);
+  if (records.size() != count) return false;
+  for (const auto record : records) {
+    const auto values = Split(record, ',', 5);
+    if (values.size() != 4 || values[0].empty() || values[0].size() > 8) return false;
+    const char kind = values[0].front();
+    if (kind != 'c' && kind != 't' && kind != 'k' && kind != 'p') return false;
+    Description entry;
+    if (!PercentDecode(values[1], &entry.name) ||
+        !PercentDecode(values[2], &entry.text))
+      return false;
+    entry.from_eid = values[3] == "eid";
+    next.entries[std::string(values[0])] = std::move(entry);
+  }
+  next.received = true;
+  state->descriptions = std::move(next);
+  return true;
+}
+
 }  // namespace
 
 bool PercentDecode(std::string_view input, std::string* output) {
@@ -461,6 +489,10 @@ bool ApplyStatePacket(const char* bytes, size_t size, LiveState* state,
   if (fields[1] == "P") {
     ok = ParseProgress(fields, state);
     parsed = PacketTopic::kProgress;
+  }
+  if (fields[1] == "E") {
+    ok = ParseDescriptions(fields, state);
+    parsed = PacketTopic::kDescriptions;
   }
   if (!ok) return false;
   state->last_sequence = sequence;

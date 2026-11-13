@@ -50,7 +50,7 @@ internal fun GameDetailsPage(
     progress: InstallProgress?,
     saveProgress: SaveImportProgress?,
     operationBusy: Boolean,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onInstall: () -> Unit,
     onImportSave: () -> Unit,
     onPlay: () -> Unit,
@@ -77,6 +77,7 @@ internal fun GameDetailsPage(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (onBack != null) {
                 IconButton(
                     onClick = onBack,
                     modifier = Modifier
@@ -87,7 +88,8 @@ internal fun GameDetailsPage(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to games", modifier = Modifier.size(19.dp))
                 }
-                Spacer(Modifier.width(10.dp))
+                }
+                if (onBack != null) Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
                         "GAME DETAILS",

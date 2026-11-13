@@ -70,7 +70,8 @@ internal fun LauncherScreen(
         saveProgress.values.any(SaveImportProgress::running)
     var pendingGame by remember { mutableStateOf<SupportedGame?>(null) }
     var pendingSaveGame by remember { mutableStateOf<Pair<SupportedGame, InstalledGame>?>(null) }
-    var page by remember { mutableStateOf<LauncherPage>(LauncherPage.PcGames) }
+    val home = LauncherPage.PcGameDetails(GameCatalog.games.single().id)
+    var page by remember { mutableStateOf<LauncherPage>(home) }
 
     val gameArchivePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val game = pendingGame
@@ -122,8 +123,7 @@ internal fun LauncherScreen(
         ) {
             LauncherHeader(
                 selected = selectedNavigation,
-                onPcGames = { page = LauncherPage.PcGames },
-                onGuide = { page = LauncherPage.Guide },
+                onHome = { page = home },
                 onSettings = { page = LauncherPage.Settings },
             )
             LauncherUpdateBanner(
@@ -157,19 +157,19 @@ internal fun LauncherScreen(
                                 onRetry = model::retryPayloadBootstrap,
                             )
                         } else {
-                            GamesPage(
-                                installed = installed,
-                                progress = progress,
-                                saveProgress = saveProgress,
-                                onSelectGame = { page = LauncherPage.PcGameDetails(it.id) },
-                            )
+                            LaunchedEffect(Unit) { page = home }
                         }
                     }
 
                     is LauncherPage.PcGameDetails -> {
                         val game = GameCatalog.byId(destination.gameId)
-                        if (game == null) {
-                            LaunchedEffect(destination.gameId) { page = LauncherPage.PcGames }
+                        if (payloadState !is PayloadBootstrapState.Ready) {
+                            PayloadBootstrapPage(
+                                state = payloadState,
+                                onRetry = model::retryPayloadBootstrap,
+                            )
+                        } else if (game == null) {
+                            LaunchedEffect(destination.gameId) { page = home }
                         } else {
                             GameDetailsPage(
                                 game = game,
@@ -177,7 +177,7 @@ internal fun LauncherScreen(
                                 progress = progress[game.id],
                                 saveProgress = saveProgress[game.id],
                                 operationBusy = operationBusy,
-                                onBack = { page = LauncherPage.PcGames },
+                                onBack = null,
                                 onInstall = { chooseGameArchive(game) },
                                 onImportSave = {
                                     installed[game.id]?.let { chooseSaveArchive(game, it) }
@@ -200,9 +200,7 @@ internal fun LauncherScreen(
                         onBack = { page = LauncherPage.Settings },
                     )
 
-                    LauncherPage.Guide -> GuidePage(
-                        onBrowseGames = { page = LauncherPage.PcGames },
-                    )
+                    LauncherPage.Guide -> LaunchedEffect(Unit) { page = home }
 
                     LauncherPage.Settings -> SettingsPage(
                         settings = settings,

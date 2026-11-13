@@ -220,6 +220,13 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             }
         }.onSuccess { saves ->
             launchStatus.record("STORAGE", "Live saves: ${saves.absolutePath}")
+            if (!configurationLauncher && game.id == "isaac-repentance") {
+                runCatching {
+                    com.dualscreen.launcher.IsaacOptions.ensureFullscreen(saves)
+                }.onSuccess { changed ->
+                    launchStatus.record("DISPLAY", "Isaac options.ini fullscreen enforced; changed=$changed")
+                }
+            }
         }.onFailure { failure ->
             launchStatus.record("STORAGE", "Public save exposure skipped safely: ${failure.message}")
         }
@@ -282,6 +289,17 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             "guest=${shortcut.path} host=${target.absolutePath} bytes=${target.length()} " +
                 "cwd=${target.parentFile?.absolutePath} readable=${target.canRead()}",
         )
+
+        if (!configurationLauncher && game.id == "isaac-repentance") {
+            val gameRoot = target.parentFile
+            if (gameRoot != null && !com.dualscreen.launcher.IsaacEid.installed(gameRoot)) {
+                updateStatus("DOWNLOADING ITEM DESCRIPTIONS", "External Item Descriptions (one time)")
+            }
+            val eid = gameRoot != null && withContext(Dispatchers.IO) {
+                com.dualscreen.launcher.IsaacEid.ensure(gameRoot)
+            }
+            launchStatus.record("MOD", "External Item Descriptions available=$eid")
+        }
 
         if (!configurationLauncher && game.nativeDllOverrides.isNotEmpty()) {
             val registry = withContext(Dispatchers.IO) {
@@ -395,6 +413,11 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         root.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
         val renderer = view.renderer
         session.configureRenderer(renderer)
+        if (game.id == "isaac-repentance") {
+            // Fit/crop the guest client to the top screen so no desktop frame
+            // or background shows around Isaac's window.
+            renderer.setFitGuestWindow(true)
+        }
         xServer.setRenderer(renderer)
 
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)

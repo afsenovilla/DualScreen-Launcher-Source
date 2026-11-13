@@ -153,6 +153,127 @@ local function joinRecords(records)
     return table.concat(records, ";")
 end
 
+-- Full "what does it do" text for everything the player holds. External Item
+-- Descriptions (EID) is used when it is installed; otherwise the game's own
+-- pickup line is the fallback. Sent only when the held set changes.
+local descriptionCache = {}
+local lastDescriptionSignature = nil
+local MAX_DESCRIPTION_BYTES = 420
+local MAX_DESCRIPTION_PACKET = 56000
+
+local function cleanDescription(text)
+    text = tostring(text or "")
+    text = text:gsub("\226\134\145", "+")   -- up arrow
+    text = text:gsub("\226\134\147", "-")   -- down arrow
+    text = text:gsub("\226\134\146", ">")   -- right arrow
+    text = text:gsub("{{[^}]*}}", "")
+    text = text:gsub("\r", "")
+    text = text:gsub("%s*#%s*", "\n")
+    text = text:gsub("[ \t]+", " ")
+    text = text:gsub("\n+", "\n")
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+    if #text > MAX_DESCRIPTION_BYTES then
+        text = text:sub(1, MAX_DESCRIPTION_BYTES)
+        -- Never cut a UTF-8 sequence in half.
+        while #text > 0 do
+            local last = text:byte(#text)
+            if last < 0x80 then break end
+            if last >= 0xC0 then text = text:sub(1, #text - 1) break end
+            text = text:sub(1, #text - 1)
+        end
+        text = text .. "..."
+    end
+    return text
+end
+
+local function describe(key, variant, subtype, fallbackName, fallbackText)
+    local cached = descriptionCache[key]
+    if cached ~= nil then return cached end
+    local name, text = fallbackName or "", fallbackText or ""
+    local source = "game"
+    if type(EID) == "table" and type(EID.getDescriptionObj) == "function" then
+        local ok, object = pcall(function()
+            return EID:getDescriptionObj(5, variant, subtype, nil, false)
+        end)
+        if ok and type(object) == "table" and type(object.Description) == "string" and
+           object.Description ~= "" then
+            text = object.Description
+            if type(object.Name) == "string" and object.Name ~= "" then name = object.Name end
+            source = "eid"
+        end
+    end
+    cached = { name = cleanDescription(name), text = cleanDescription(text), source = source }
+    descriptionCache[key] = cached
+    return cached
+end
+
+local function sendDescriptions(player)
+    local entries, keys, total = {}, {}, 0
+    local function add(key, variant, subtype, name, text)
+        if #entries >= 160 then return end
+        if keys[key] then return end
+        keys[key] = true
+        local described = describe(key, variant, subtype, name, text)
+        local record = table.concat({
+            key, encode(described.name), encode(described.text), described.source,
+        }, ",")
+        -- Stay inside one UDP-sized packet; held trinkets/pockets go first.
+        if total + #record + 1 > MAX_DESCRIPTION_PACKET then return end
+        total = total + #record + 1
+        entries[#entries + 1] = record
+    end
+    for slot = 0, 1 do
+        local encodedId = safe(0, function() return player:GetTrinket(slot) end)
+        if encodedId > 0 then
+            local id = encodedId % 32768
+            local config = safe(nil, function() return itemConfig:GetTrinket(id) end)
+            add("t" .. id, 350, encodedId,
+                safe("", function() return config.Name end),
+                safe("", function() return config.Description end))
+        end
+        local cardId = safe(0, function() return player:GetCard(slot) end)
+        if cardId > 0 then
+            local card = safe(nil, function() return itemConfig:GetCard(cardId) end)
+            add("k" .. cardId, 300, cardId,
+                safe("", function() return card.Name end),
+                safe("", function() return card.Description end))
+        else
+            local pillColor = safe(0, function() return player:GetPill(slot) end)
+            if pillColor > 0 then
+                local effect = safe(-1, function()
+                    return game:GetItemPool():GetPillEffect(pillColor, player)
+                end)
+                local identified = safe(false, function()
+                    return game:GetItemPool():IsPillIdentified(pillColor)
+                end)
+                local pill = safe(nil, function() return itemConfig:GetPillEffect(effect) end)
+                if identified then
+                    add("p" .. effect, 70, pillColor,
+                        safe("", function() return pill.Name end), "")
+                else
+                    -- Unidentified pills keep their mystery, as in the game.
+                    keys["p" .. effect] = true
+                    entries[#entries + 1] = table.concat({
+                        "p" .. effect, encode("???"), encode("Unidentified pill"), "game",
+                    }, ",")
+                end
+            end
+        end
+    end
+    for id = 1, MAX_COLLECTIBLE_ID do
+        if safe(0, function() return player:GetCollectibleNum(id) end) > 0 then
+            local config = safe(nil, function() return itemConfig:GetCollectible(id) end)
+            add("c" .. id, 100, id,
+                safe("", function() return config.Name end),
+                safe("", function() return config.Description end))
+        end
+    end
+    local signature = table.concat(entries, ";")
+    if signature == lastDescriptionSignature then return end
+    lastDescriptionSignature = signature
+    send("E", { #entries, signature })
+end
+
 local function sendInventory(player)
     local collectibles = {}
     for id = 1, MAX_COLLECTIBLE_ID do
@@ -485,6 +606,7 @@ function DualScreenIsaac:onUpdate()
     end
     if frame % 30 == 0 then
         sendInventory(player)
+        sendDescriptions(player)
         sendRun(player)
         sendProgress()
     end
@@ -496,6 +618,7 @@ function DualScreenIsaac:onNewRoom()
     if player ~= nil then
         sendMap()
         sendInventory(player)
+        sendDescriptions(player)
     end
 end
 
@@ -513,6 +636,8 @@ function DualScreenIsaac:onGameStarted(continued)
     local hits = 0
     pickupJournal = {}
     pickupSeen = {}
+    descriptionCache = {}
+    lastDescriptionSignature = nil
     if continued and self:HasData() then
         local data = self:LoadData()
         local seed, saved = data:match("^(.-)|(%d+)$")
@@ -538,6 +663,7 @@ function DualScreenIsaac:onGameStarted(continued)
         sendStatus(player)
         sendMap()
         sendInventory(player)
+        sendDescriptions(player)
         sendRun(player)
         sendProgress()
         saveHits()

@@ -14,6 +14,7 @@
 #include <deque>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +35,7 @@ constexpr int kWidth = 1240;
 constexpr int kHeight = 1080;
 constexpr int kDashboardPageCount = 6;
 constexpr int kItemColumns = 6;
-constexpr int kItemVisibleRows = 3;
+constexpr int kItemVisibleRows = 2;
 constexpr int kItemSlotSize = 86;
 constexpr int kItemColumnStep = 126;
 constexpr int kItemRowStep = 92;
@@ -60,7 +61,7 @@ constexpr COLORREF kWine = RGB(107, 36, 27);
 constexpr COLORREF kBackground = RGB(23, 17, 14);
 constexpr COLORREF kParchment = RGB(225, 201, 149);
 
-enum class Page : uint8_t { kMap, kStats, kRunInfo, kItems, kPickups, kProgress };
+enum class Page : uint8_t { kItems, kMap, kStats, kRunInfo, kPickups, kProgress };
 
 struct Surface {
   HDC dc = nullptr;
@@ -86,9 +87,12 @@ SOCKET g_touch_socket = INVALID_SOCKET;
 SOCKET g_state_socket = INVALID_SOCKET;
 bool g_winsock = false;
 LiveState g_state;
-Page g_page = Page::kMap;
+Page g_page = Page::kItems;
+// Key of a held trinket/card/pill/active whose description is shown instead
+// of the selected grid item (set by tapping the top HUD slots).
+std::string g_focus_key;
+std::vector<int> g_known_collectibles;
 int g_selected_item = -1;
-bool g_item_details = false;
 int g_progress_tab = 0;
 int g_progress_offset = 0;
 int g_progress_character = -1;
@@ -486,7 +490,7 @@ void DrawStaticPage(Page page, HDC dc) {
   // These centers are derived from the printed boxes in the two authored
   // sheets at the native 1240x1080 panel size.
   g_font.Draw(dc, "RUN TIME", 166.0f, 84.0f, 24.0f, kInk, true);
-  const char* titles[] = {"DUNGEON MAP", "STATS", "RUN INFO", "ITEMS", "ITEM PICKUPS", "COMPLETION / PROGRESS"};
+  const char* titles[] = {"ITEMS", "DUNGEON MAP", "STATS", "RUN INFO", "ITEM PICKUPS", "COMPLETION / PROGRESS"};
   const char* title = titles[static_cast<size_t>(page)];
   const bool map_page = page == Page::kMap;
   const bool centered_page = page != Page::kStats && page != Page::kRunInfo;
@@ -1008,6 +1012,24 @@ void DrawStatsPage(HDC dc) {
 
 }
 
+// Six dots and the neighbouring page names make the swipe navigation visible.
+void DrawPageIndicator(HDC dc) {
+  const char* names[] = {"ITEMS", "MAP", "STATS", "RUN", "PICKUPS", "PROGRESS"};
+  const int current = static_cast<int>(g_page);
+  const int spacing = 26;
+  const int left = 620 - (kDashboardPageCount - 1) * spacing / 2;
+  for (int index = 0; index < kDashboardPageCount; ++index) {
+    const int cx = left + index * spacing;
+    const int radius = index == current ? 7 : 4;
+    Fill(dc, Rect(cx - radius, 1024 - radius, cx + radius, 1024 + radius),
+         index == current ? kWine : kInkMuted);
+  }
+  const int previous = (current + kDashboardPageCount - 1) % kDashboardPageCount;
+  const int next = (current + 1) % kDashboardPageCount;
+  g_font.Draw(dc, std::string("< ") + names[previous], 300.0f, 1015.0f, 16.0f, kInkMuted, true);
+  g_font.Draw(dc, std::string(names[next]) + " >", 940.0f, 1015.0f, 16.0f, kInkMuted, true);
+}
+
 void DrawDashboard(HDC dc) {
   DrawRewardChances(dc);
 
@@ -1028,6 +1050,7 @@ void DrawDashboard(HDC dc) {
   DrawPocketSlots(dc);
   DrawTrinketSlots(dc);
 
+  DrawPageIndicator(dc);
   if (g_page == Page::kStats) {
     DrawStatsPage(dc);
   } else if (g_page == Page::kRunInfo) {
@@ -1049,7 +1072,7 @@ void DrawDashboard(HDC dc) {
 
 void DrawItemPageArrow(HDC dc, bool points_left) {
   const int center_x = points_left ? 170 : 1070;
-  const int center_y = 730;
+  const int center_y = kItemGridTop + kItemGridHeight / 2;
   POINT outer[3] = {};
   POINT inner[3] = {};
   if (points_left) {
@@ -1101,40 +1124,103 @@ void DrawItemSelection(HDC dc, const RECT& slot) {
   Fill(dc, Rect(right - weight, bottom - length, right, bottom), marker);
 }
 
-void DrawItemDetails(HDC dc) {
-  const auto* item=FindCollectible(g_selected_item);
-  if(!item) return;
-  DrawAssetStretch(dc,"custom/item_description_panel.png",Rect(110,585,1130,1000),true);
-  DrawItemAsset(dc,item,Rect(140,630,310,800));
-  const std::string name=Upper(item->name);
-  const auto names=g_font.Wrap(name,30,700);
-  float y=610;
-  for(const auto& line:names) { g_font.Draw(dc,line,365,y,30,kInk); y+=35; }
-  g_font.Draw(dc,"X",1080,606,25,kInk,true);
-  y+=10;
-  for(const auto& line:g_font.Wrap(item->description,24,680)) {
-    if(y>825) break;
-    g_font.Draw(dc,line,365,y,24,kInk);y+=29;
+struct ShownDescription {
+  std::string name;
+  std::string text;
+  const ItemMetadata* icon = nullptr;
+  int quality = -1;
+  bool held = false;
+  bool from_eid = false;
+};
+
+// Resolves what the description box shows: a tapped HUD slot first, then the
+// selected grid item. Live text (EID when installed) wins over the catalog.
+bool ResolveDescription(ShownDescription* out) {
+  std::string key = g_focus_key;
+  if (key.empty() && g_selected_item > 0) key = "c" + std::to_string(g_selected_item);
+  if (key.empty()) return false;
+  const char kind = key.front();
+  const int id = std::atoi(key.c_str() + 1);
+  if (kind == 'c') {
+    out->icon = FindCollectible(id);
+    if (out->icon) {
+      out->name = out->icon->name;
+      out->text = out->icon->description;
+      out->quality = out->icon->quality;
+    }
+    for (const CollectedItem& entry : g_state.inventory.collectibles)
+      if (entry.id == id) out->held = true;
+  } else if (kind == 't') {
+    out->icon = FindTrinket(id);
+    if (out->icon) { out->name = out->icon->name; out->text = out->icon->description; }
+    out->held = true;
+  } else {
+    for (const PocketItem& pocket : g_state.inventory.pockets) {
+      const bool match = (kind == 'k' && pocket.kind == PocketKind::kCard && pocket.id == id) ||
+                         (kind == 'p' && pocket.kind == PocketKind::kPill && pocket.id == id);
+      if (match) { out->name = pocket.name; out->held = true; }
+    }
   }
-  y+=20;
-  std::string kind=Upper(item->kind)+"  |  QUALITY "+Number(item->quality);
-  if(item->max_charges>0) kind+="  |  CHARGES "+Number(item->max_charges);
-  for(const auto& line:g_font.Wrap(kind,20,680)) { g_font.Draw(dc,line,365,y,20,kInk);y+=25; }
-  int held=0;
-  for(const auto& entry:g_state.inventory.collectibles) if(entry.id==item->id) held=entry.count;
-  g_font.Draw(dc,"CURRENTLY HELD: "+Number(held),365,y+20,20,kInk);
-  if(g_page==Page::kPickups) {
-    int count=0;for(const auto& entry:g_state.progress.pickups) if(entry.id==item->id) ++count;
-    g_font.Draw(dc,"PICKED UP THIS RUN: "+Number(count),365,y+50,20,kInk);
+  const auto found = g_state.descriptions.entries.find(key);
+  if (found != g_state.descriptions.entries.end()) {
+    if (!found->second.name.empty() && found->second.name.front() != '#')
+      out->name = found->second.name;
+    if (!found->second.text.empty() && found->second.text.front() != '#')
+      out->text = found->second.text;
+    out->from_eid = found->second.from_eid;
   }
+  return !out->name.empty() || !out->text.empty();
+}
+
+void DrawDescriptionBox(HDC dc) {
+  const RECT box = Rect(110, 784, 1130, 1006);
+  DrawAssetStretch(dc, "custom/item_description_panel.png", box, true);
+  ShownDescription shown;
+  if (!ResolveDescription(&shown)) {
+    g_font.Draw(dc, "TAP AN ITEM TO SEE WHAT IT DOES", 620.0f, 884.0f, 24.0f,
+                kInk, true);
+    return;
+  }
+  // The authored strip has a fixed-width icon compartment on the left.
+  constexpr int text_left = 322;
+  if (shown.icon) DrawItemAsset(dc, shown.icon, Rect(150, 836, 260, 946));
+  const float max_width = static_cast<float>(box.right - 40 - text_left);
+  g_font.Draw(dc, Upper(Clean(shown.name, "UNKNOWN")), static_cast<float>(text_left),
+              800.0f, 27.0f, kWine);
+  if (shown.quality >= 0)
+    g_font.Draw(dc, "QUALITY " + Number(shown.quality), 205.0f, 806.0f, 15.0f,
+                kInkMuted, true);
+  // EID separates effects with line breaks; render each as its own bullet.
+  std::vector<std::string> lines;
+  std::string paragraph;
+  std::istringstream paragraphs(shown.text);
+  bool multiple = shown.text.find('\n') != std::string::npos;
+  while (std::getline(paragraphs, paragraph)) {
+    if (paragraph.empty()) continue;
+    const auto wrapped = g_font.Wrap((multiple ? "- " : "") + paragraph, 22.0f, max_width);
+    lines.insert(lines.end(), wrapped.begin(), wrapped.end());
+  }
+  float y = 840.0f;
+  const float bottom = static_cast<float>(box.bottom - 26);
+  for (size_t index = 0; index < lines.size(); ++index) {
+    if (y + 2 * 26.0f > bottom && index + 1 < lines.size()) {
+      g_font.Draw(dc, lines[index] + " ...", static_cast<float>(text_left), y, 22.0f, kInk);
+      break;
+    }
+    g_font.Draw(dc, lines[index], static_cast<float>(text_left), y, 22.0f, kInk);
+    y += 26.0f;
+  }
+  if (!shown.from_eid && g_state.descriptions.received)
+    g_font.Draw(dc, "SHORT GAME TEXT (EID NOT LOADED)",
+                static_cast<float>(text_left), static_cast<float>(box.bottom - 24), 13.0f,
+                kInkMuted);
 }
 
 void DrawItemsPage(HDC dc) {
-  if(g_item_details) { DrawItemDetails(dc); return; }
   g_font.Draw(dc,
               Number(static_cast<int>(DisplayItems().size())) +
                   (g_page == Page::kPickups ? " PICKUPS" : " ITEMS HELD"),
-              620.0f, 558.0f, 24.0f, kInk, true);
+              620.0f, 552.0f, 22.0f, kInk, true);
 
   const int saved = SaveDC(dc);
   IntersectClipRect(dc, kItemGridLeft - 6, kItemGridTop - 6,
@@ -1163,57 +1249,18 @@ void DrawItemsPage(HDC dc) {
                       static_cast<float>(y + kItemSlotSize - 25), 16.0f,
                       RGB(238, 225, 193));
         }
-        if (entry.id == g_selected_item) DrawItemSelection(dc, slot);
+        if (g_focus_key.empty() && entry.id == g_selected_item)
+          DrawItemSelection(dc, slot);
       }
     }
   }
   RestoreDC(dc, saved);
 
-  DrawItemPageArrow(dc, true);
-  DrawItemPageArrow(dc, false);
-
-  // Keep the description strip exactly under the six item columns.  Preserve
-  // the source texture's aspect ratio while scaling it down to the grid width.
-  constexpr int kDescriptionEdgeOverhang = 5;
-  const RECT description_panel =
-      Rect(kItemGridLeft - kDescriptionEdgeOverhang, 873,
-           kItemGridLeft + kItemGridWidth + kDescriptionEdgeOverhang, 1002);
-  DrawAssetStretch(dc, "custom/item_description_panel.png",
-                   description_panel, true);
-
-  const ItemMetadata* selected = FindCollectible(g_selected_item);
-  if (selected) {
-    const CollectedItem* live = nullptr;
-    for (const CollectedItem& entry : DisplayItems()) {
-      if (entry.id == g_selected_item) {
-        live = &entry;
-        break;
-      }
-    }
-    const std::string name =
-        live && !live->name.empty() && live->name.front()!='#' ? live->name : selected->name;
-    const std::string description =
-        live && !live->description.empty() && live->description.front()!='#' ? live->description
-                                           : selected->description;
-    const int quality = live && live->quality >= 0 ? live->quality
-                                                     : selected->quality;
-    DrawItemAsset(dc, selected, Rect(250, 883, 360, 992));
-    g_font.Draw(dc, Upper(Clean(name, "UNKNOWN ITEM")), 387.0f,
-                887.0f, 25.0f, kInk);
-    if (quality >= 0) {
-      g_font.Draw(dc, "QUALITY " + Number(quality), 900.0f,
-                  890.0f, 15.0f, kInk, true);
-    }
-    if (!description.empty() && description != name) {
-      const auto lines = g_font.Wrap(description, 19.0f, 510.0f);
-      for (size_t line = 0; line < std::min<size_t>(3, lines.size()); ++line) {
-        g_font.Draw(dc, lines[line], 387.0f,
-                    928.0f + static_cast<float>(line) * 23.0f, 19.0f, kInk);
-      }
-    }
-  } else {
-    g_font.Draw(dc, "SELECT AN ITEM", 620.0f, 921.0f, 24.0f, kInk, true);
+  if (MaximumItemScroll() > 0.0f) {
+    DrawItemPageArrow(dc, true);
+    DrawItemPageArrow(dc, false);
   }
+  DrawDescriptionBox(dc);
 }
 
 std::string CurseNames(int mask) {
@@ -1417,7 +1464,7 @@ void RequestRender(bool immediate = false) {
 void SetPage(Page page) {
   if (page == g_page) return;
   g_page = page;
-  g_item_scroll=0; g_selected_item=-1;g_item_details=false;
+  g_item_scroll=0;
   const char* name = g_page == Page::kStats
                          ? "stats"
                          : (g_page == Page::kRunInfo
@@ -1433,6 +1480,91 @@ void ChangePage(int direction) {
   SetPage(static_cast<Page>(index % kDashboardPageCount));
 }
 
+// Tapping an active item, card/pill or trinket on the top strip shows its
+// description in the items page.
+bool FocusHudSlot(float x, float y) {
+  auto inside = [&](const RECT& r) {
+    return x >= r.left - 8 && x < r.right + 8 && y >= r.top - 8 && y < r.bottom + 8;
+  };
+  std::string key;
+  {
+    std::array<const ActiveItem*, 2> entries = {};
+    for (const ActiveItem& item : g_state.inventory.actives)
+      if (item.slot >= 0 && item.slot < 2 && !entries[item.slot]) entries[item.slot] = &item;
+    const auto slots = HudSlots(328, 612, entries[1] != nullptr);
+    for (int i = 0; i < 2; ++i)
+      if (entries[i] && inside(slots[i])) key = "c" + std::to_string(entries[i]->id);
+  }
+  {
+    std::array<const PocketItem*, 2> entries = {};
+    for (const PocketItem& item : g_state.inventory.pockets)
+      if (item.slot >= 0 && item.slot < 2 && !entries[item.slot]) entries[item.slot] = &item;
+    const auto slots = HudSlots(638, 911, entries[1] != nullptr);
+    for (int i = 0; i < 2; ++i)
+      if (entries[i] && inside(slots[i]))
+        key = std::string(entries[i]->kind == PocketKind::kPill ? "p" : "k") +
+              std::to_string(entries[i]->id);
+  }
+  {
+    std::array<const Trinket*, 2> entries = {};
+    for (const Trinket& item : g_state.inventory.trinkets)
+      if (item.slot >= 0 && item.slot < 2 && !entries[item.slot]) entries[item.slot] = &item;
+    const auto slots = HudSlots(922, 1197, entries[1] != nullptr);
+    for (int i = 0; i < 2; ++i)
+      if (entries[i] && inside(slots[i])) key = "t" + std::to_string(entries[i]->id);
+  }
+  if (key.empty()) return false;
+  g_focus_key = key;
+  if (g_page != Page::kItems) {
+    g_page = Page::kItems;
+    g_item_scroll = 0;
+  }
+  RequestRender(true);
+  return true;
+}
+
+// Selects the most recently obtained collectible so its description is on
+// screen without any touch.
+void FollowNewestItem() {
+  const auto& held = g_state.inventory.collectibles;
+  std::vector<int> ids;
+  ids.reserve(held.size());
+  for (const CollectedItem& entry : held) ids.push_back(entry.id);
+  int newest = -1;
+  if (g_known_collectibles.empty()) {
+    if (!g_state.progress.history.empty()) {
+      for (auto it = g_state.progress.history.rbegin(); it != g_state.progress.history.rend(); ++it)
+        if (std::find(ids.begin(), ids.end(), it->id) != ids.end()) { newest = it->id; break; }
+    }
+    if (newest < 0 && !ids.empty()) newest = ids.back();
+  } else {
+    for (int id : ids)
+      if (std::find(g_known_collectibles.begin(), g_known_collectibles.end(), id) ==
+          g_known_collectibles.end())
+        newest = id;
+  }
+  g_known_collectibles = std::move(ids);
+  if (newest > 0) {
+    g_selected_item = newest;
+    g_focus_key.clear();
+    if (g_page == Page::kItems) {
+      // Scroll the grid so the new item is visible.
+      for (size_t index = 0; index < held.size(); ++index) {
+        if (held[index].id != newest) continue;
+        const float row_top = static_cast<float>(index / kItemColumns) * kItemRowStep;
+        if (row_top < g_item_scroll || row_top + kItemSlotSize > g_item_scroll + kItemGridHeight)
+          g_item_scroll = std::clamp(row_top - kItemRowStep * (kItemVisibleRows - 1), 0.0f,
+                                     MaximumItemScroll());
+      }
+    }
+  }
+  // A dropped trinket/card must not keep a stale description on screen.
+  if (!g_focus_key.empty()) {
+    ShownDescription shown;
+    if (!ResolveDescription(&shown) || !shown.held) g_focus_key.clear();
+  }
+}
+
 void HandleTap(float normalized_x, float normalized_y) {
   if (!std::isfinite(normalized_x) || !std::isfinite(normalized_y) ||
       normalized_x < 0.0f || normalized_x > 1.0f ||
@@ -1440,6 +1572,9 @@ void HandleTap(float normalized_x, float normalized_y) {
     return;
   const float x = normalized_x * kWidth;
   const float y = normalized_y * kHeight;
+  if (y < 350.0f && x > 320.0f) {
+    if (FocusHudSlot(x, y)) return;
+  }
   if (g_page == Page::kProgress) {
     if (y >= 550 && y < 604) { g_progress_tab=std::clamp(static_cast<int>((x-100)/208),0,4); g_progress_offset=0; }
     else if (y >= 950) {
@@ -1451,7 +1586,6 @@ void HandleTap(float normalized_x, float normalized_y) {
     RequestRender(true); return;
   }
   if (!ItemPage()) return;
-  if(g_item_details) { g_item_details=false;RequestRender(true);return; }
   if (y >= kItemGridTop && y < kItemGridTop + kItemGridHeight && x < 205.0f) {
     g_item_scroll = std::clamp(
         g_item_scroll - kItemVisibleRows * kItemRowStep, 0.0f,
@@ -1481,7 +1615,7 @@ void HandleTap(float normalized_x, float normalized_y) {
   const size_t index = static_cast<size_t>(row * kItemColumns + column);
   if (index < DisplayItems().size()) {
     g_selected_item = DisplayItems()[index].id;
-    g_item_details=true;
+    g_focus_key.clear();
     RequestRender(true);
   }
 }
@@ -1618,6 +1752,7 @@ void PollStateSocket() {
         "[State] first authoritative in-game packet accepted sequence=%llu",
         static_cast<unsigned long long>(g_state.last_sequence));
   }
+  FollowNewestItem();
   if (g_selected_item < 0 && !DisplayItems().empty())
     g_selected_item = DisplayItems().front().id;
   g_item_scroll = std::clamp(g_item_scroll, 0.0f, MaximumItemScroll());
@@ -1651,6 +1786,7 @@ void PollDirectStatePackets() {
         "[State] first authoritative in-game packet accepted sequence=%llu",
         static_cast<unsigned long long>(g_state.last_sequence));
   }
+  FollowNewestItem();
   if (g_selected_item < 0 && !DisplayItems().empty())
     g_selected_item = DisplayItems().front().id;
   g_item_scroll = std::clamp(g_item_scroll, 0.0f, MaximumItemScroll());
@@ -1925,12 +2061,12 @@ DWORD WINAPI PanelThread(void*) {
   Log(LogLevel::kInfo, "[Assets] catalog=%s records-ready=1",
       CatalogSourceBuild().c_str());
   Log(LogLevel::kInfo, "[PanelInit] drawing dashboard backgrounds");
-  DrawStaticPage(Page::kMap, g_static_pages[0].dc);
-  DrawStaticPage(Page::kStats, g_static_pages[1].dc);
-  DrawStaticPage(Page::kRunInfo, g_static_pages[2].dc);
-  DrawStaticPage(Page::kItems, g_static_pages[3].dc);
-  DrawStaticPage(Page::kPickups, g_static_pages[4].dc);
-  DrawStaticPage(Page::kProgress, g_static_pages[5].dc);
+  DrawStaticPage(Page::kMap, g_static_pages[PageIndex(Page::kMap)].dc);
+  DrawStaticPage(Page::kStats, g_static_pages[PageIndex(Page::kStats)].dc);
+  DrawStaticPage(Page::kRunInfo, g_static_pages[PageIndex(Page::kRunInfo)].dc);
+  DrawStaticPage(Page::kItems, g_static_pages[PageIndex(Page::kItems)].dc);
+  DrawStaticPage(Page::kPickups, g_static_pages[PageIndex(Page::kPickups)].dc);
+  DrawStaticPage(Page::kProgress, g_static_pages[PageIndex(Page::kProgress)].dc);
   Log(LogLevel::kInfo, "[PanelInit] dashboard backgrounds ready");
 
   WSADATA data = {};

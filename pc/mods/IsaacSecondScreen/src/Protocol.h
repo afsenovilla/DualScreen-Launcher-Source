@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -136,6 +137,17 @@ struct MapDrawCommand {
   double x=0,y=0,scale_x=1,scale_y=1,red=1,green=1,blue=1,alpha=1;
 };
 struct NativeMapState { std::vector<MapDrawCommand> commands; bool received=false; };
+
+// "What does it do" text keyed by c<collectible>, t<trinket>, k<card>, p<pill effect>.
+struct Description {
+  std::string name;
+  std::string text;
+  bool from_eid = false;
+};
+struct DescriptionState {
+  std::map<std::string, Description> entries;
+  bool received = false;
+};
 struct LiveState {
   uint64_t last_sequence = 0;
   uint64_t game_frame = 0;
@@ -151,9 +163,10 @@ struct LiveState {
   InventoryState inventory;
   RunInfo run;
   ProgressState progress;
+  DescriptionState descriptions;
 };
 
-enum class PacketTopic : uint8_t { kNone, kStatus, kMap, kInventory, kRun, kProgress, kNativeMap };
+enum class PacketTopic : uint8_t { kNone, kStatus, kMap, kInventory, kRun, kProgress, kNativeMap, kDescriptions };
 
 bool PercentDecode(std::string_view input, std::string* output);
 bool ApplyStatePacket(const char* bytes, size_t size, LiveState* state,
