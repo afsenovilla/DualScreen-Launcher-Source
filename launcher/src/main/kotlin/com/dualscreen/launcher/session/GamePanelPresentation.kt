@@ -134,7 +134,7 @@ class GamePanelPresentation(
             setTextColor(Color.rgb(210, 202, 184))
             setBackgroundColor(Color.rgb(8, 11, 13))
             textSize = 19f
-            text = "${game.title}\n\nWAITING FOR GAME"
+            text = "${game.title}\n\nESPERANDO AL JUEGO"
         }
         launchStatusView = waiting
         root.addView(waiting, FrameLayout.LayoutParams(-1, -1))

@@ -305,12 +305,12 @@ private fun WaitingForGamePanel(title: String) {
             MonoLabel(text = title, color = colors.textMuted)
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "WAITING FOR GAME PANEL",
+                text = "ESPERANDO AL PANEL DEL JUEGO",
                 color = colors.text,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            MonoLabel(text = "Swipe up for WEMU console", small = true)
+            MonoLabel(text = "Desliza arriba para la consola", small = true)
         }
     }
 }

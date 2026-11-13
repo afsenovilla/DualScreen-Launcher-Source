@@ -86,13 +86,13 @@ internal fun GameDetailsPage(
                         .background(Color(0xFF202119))
                         .border(1.dp, Color(0xFF3B3C33), RectangleShape),
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to games", modifier = Modifier.size(19.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", modifier = Modifier.size(19.dp))
                 }
                 }
                 if (onBack != null) Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
-                        "GAME DETAILS",
+                        "JUEGO",
                         color = LauncherAccent,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -164,9 +164,9 @@ internal fun GameDetailsPage(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SectionTitle("Managed game configuration", "Verified automatically before every launch")
+                    SectionTitle("Configuración automática", "Se verifica antes de cada partida")
                     Text(
-                        "NO MANUAL SETUP",
+                        "SIN AJUSTES MANUALES",
                         color = LauncherSuccess,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -179,29 +179,29 @@ internal fun GameDetailsPage(
                     verticalAlignment = Alignment.Top,
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        InformationRow("Executable", game.executableCandidates.firstOrNull() ?: "Not configured")
-                        InformationRow("Recommended build", game.requiredBuild, emphasized = true)
+                        InformationRow("Ejecutable", game.executableCandidates.firstOrNull() ?: "Sin configurar")
+                        InformationRow("Versión recomendada", game.requiredBuild, emphasized = true)
                         InformationRow(
-                            "Game launcher",
+                            "Lanzador del juego",
                             when {
-                                game.configurationLauncherCandidates.isEmpty() -> "Not required"
-                                installed == null -> "Detected during setup"
+                                game.configurationLauncherCandidates.isEmpty() -> "No necesario"
+                                installed == null -> "Se detecta al instalar"
                                 resolveConfigurationLauncherExecutable(File(installed.hostDirectory), game) != null -> "Available"
-                                else -> "Not included (optional)"
+                                else -> "No incluido (opcional)"
                             },
                         )
-                        InformationRow("Save location", game.saveDirectory.ifBlank { "Managed by the game" })
-                        InformationRow("Shared folder", "/Dualscreen/Games/${game.storageName}")
+                        InformationRow("Partidas guardadas", game.saveDirectory.ifBlank { "Las gestiona el juego" })
+                        InformationRow("Carpeta compartida", "/Dualscreen/Games/${game.storageName}")
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        InformationRow("Container", "Verified preset")
-                        InformationRow("Dual-screen mod", installed?.payloadVersion ?: "Installed during setup")
+                        InformationRow("Contenedor", "Preset verificado")
+                        InformationRow("Mod de doble pantalla", installed?.payloadVersion ?: "Se instala al configurar")
                         InformationRow(
-                            "Compatibility",
-                            if (installed?.untestedBuild == true) "Untested build" else "Recommended build",
+                            "Compatibilidad",
+                            if (installed?.untestedBuild == true) "Versión no probada" else "Versión recomendada",
                             emphasized = installed != null && !installed.untestedBuild,
                         )
-                        InformationRow("Installed data", installed?.let { formatBytes(it.installedBytes) } ?: "—")
+                        InformationRow("Datos instalados", installed?.let { formatBytes(it.installedBytes) } ?: "—")
                     }
                 }
             }
@@ -258,14 +258,14 @@ private fun GameIdentityCard(game: SupportedGame, state: GameInstallState) {
         }
         Text(
             when (state) {
-                GameInstallState.NOT_INSTALLED -> "Add your game ZIP to begin."
-                GameInstallState.INSTALLING -> "Setup is running on the lower screen."
-                GameInstallState.UPDATING_MOD -> "The dual-screen mod is being updated."
+                GameInstallState.NOT_INSTALLED -> "Añade el ZIP del juego para empezar."
+                GameInstallState.INSTALLING -> "La instalación avanza en la pantalla de abajo."
+                GameInstallState.UPDATING_MOD -> "Actualizando el mod de doble pantalla."
                 GameInstallState.IMPORTING_SAVE -> "Save files are being imported."
                 GameInstallState.READY -> if (game.panelMode == LowerPanelMode.DIAGNOSTICS)
                     "Installed for crash diagnosis. Native companion not enabled."
-                else "Installed, modded, and ready to play."
-                GameInstallState.ERROR -> "Open setup feedback for the exact error."
+                else "Instalado, con el mod y listo para jugar."
+                GameInstallState.ERROR -> "Mira el registro de abajo para ver el error."
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
@@ -273,7 +273,7 @@ private fun GameIdentityCard(game: SupportedGame, state: GameInstallState) {
         )
         Text(
             when (game.panelMode) {
-                LowerPanelMode.NATIVE_WINDOW -> "NATIVE LOWER PANEL"
+                LowerPanelMode.NATIVE_WINDOW -> "PANEL INFERIOR NATIVO"
                 LowerPanelMode.DIAGNOSTICS -> "CRASH DIAGNOSTICS / MOD IN DEVELOPMENT"
                 LowerPanelMode.STARDEW -> "MANAGED LOWER PANEL"
                 LowerPanelMode.VALHEIM -> "MANAGED LOWER PANEL"
@@ -302,12 +302,12 @@ private fun ActionPanel(
     } == true
     LauncherCard(modifier = Modifier.animateContentSize()) {
         SectionTitle(
-            if (ready) "Play & manage" else "Install this game",
+            if (ready) "Jugar y gestionar" else "Instalar el juego",
             if (ready) "Launch, update, or import a save" else "Choose the ZIP containing your game files",
         )
         if (!ready) {
             PrimaryAction(
-                label = "Select Game ZIP",
+                label = "Elegir ZIP del juego",
                 icon = Icons.Default.FolderZip,
                 onClick = onInstall,
                 enabled = !busy,
@@ -315,7 +315,7 @@ private fun ActionPanel(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "RECOMMENDED  ${game.requiredBuild}",
+                "RECOMENDADA  ${game.requiredBuild}",
                 color = LauncherAccent,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
@@ -329,7 +329,7 @@ private fun ActionPanel(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 PrimaryAction(
-                    label = "Play Game",
+                    label = "Jugar",
                     icon = Icons.Default.PlayArrow,
                     onClick = onPlay,
                     enabled = !busy,
@@ -338,7 +338,7 @@ private fun ActionPanel(
                 )
                 if (launcherAvailable) {
                     PrimaryAction(
-                        label = "Open Game Launcher",
+                        label = "Abrir lanzador del juego",
                         icon = Icons.Default.SettingsApplications,
                         onClick = onConfigure,
                         enabled = !busy,
@@ -351,14 +351,14 @@ private fun ActionPanel(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 PrimaryAction(
-                    label = "Import Save ZIP",
+                    label = "Importar partidas (ZIP)",
                     icon = Icons.Default.UploadFile,
                     onClick = onImportSave,
                     enabled = !busy && game.saveDirectory.isNotBlank(),
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryAction(
-                    label = "Update / Replace Files",
+                    label = "Actualizar / reemplazar archivos",
                     icon = Icons.Default.FolderZip,
                     onClick = onInstall,
                     enabled = !busy,
@@ -383,12 +383,12 @@ private fun SetupFeedback(
         else -> progress?.fraction ?: if (installed != null) 1f else 0f
     }
     val title = when (state) {
-        GameInstallState.NOT_INSTALLED -> "Ready for your archive"
-        GameInstallState.INSTALLING -> progress?.detail ?: "Preparing game"
-        GameInstallState.UPDATING_MOD -> progress?.detail ?: "Updating dual-screen mod"
-        GameInstallState.IMPORTING_SAVE -> saveProgress?.detail ?: "Importing save"
-        GameInstallState.READY -> "Setup complete"
-        GameInstallState.ERROR -> "Setup needs attention"
+        GameInstallState.NOT_INSTALLED -> "Listo para tu ZIP"
+        GameInstallState.INSTALLING -> progress?.detail ?: "Preparando el juego"
+        GameInstallState.UPDATING_MOD -> progress?.detail ?: "Actualizando el mod"
+        GameInstallState.IMPORTING_SAVE -> saveProgress?.detail ?: "Importando partidas"
+        GameInstallState.READY -> "Instalación completa"
+        GameInstallState.ERROR -> "La instalación necesita atención"
     }
     val error = progress?.error ?: saveProgress?.error
     val activeLog = when (state) {
@@ -408,10 +408,10 @@ private fun SetupFeedback(
                     when {
                         error != null -> error
                         state == GameInstallState.READY && installed?.untestedBuild == true ->
-                            "Installed with an untested game build. The compatibility warning remains in effect."
-                        state == GameInstallState.READY -> "Dual-screen mod ${installed?.payloadVersion.orEmpty()} is installed."
-                        state == GameInstallState.NOT_INSTALLED -> "ZIP ${game.title} with its executable and data folders included."
-                        else -> "Live progress and full setup logs remain visible on the lower screen."
+                            "Instalado con una versión no probada del juego. Puede que algo no funcione."
+                        state == GameInstallState.READY -> "Mod de doble pantalla ${installed?.payloadVersion.orEmpty()} instalado."
+                        state == GameInstallState.NOT_INSTALLED -> "Comprime la carpeta de ${game.title} (con isaac-ng.exe y resources) en un ZIP."
+                        else -> "El progreso y el registro completo se ven en la pantalla de abajo."
                     },
                     color = if (error != null) LauncherDanger else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp,

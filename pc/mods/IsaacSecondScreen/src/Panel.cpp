@@ -143,8 +143,16 @@ void AlphaFill(HDC dc, const RECT& rect, BYTE alpha, COLORREF color) {
 }
 
 std::string Upper(std::string value) {
-  for (char& character : value) {
-    if (character >= 'a' && character <= 'z') character -= 'a' - 'A';
+  for (size_t index = 0; index < value.size(); ++index) {
+    char& character = value[index];
+    if (character >= 'a' && character <= 'z') {
+      character -= 'a' - 'A';
+    } else if (static_cast<unsigned char>(character) == 0xC3 && index + 1 < value.size()) {
+      // Latin-1 lowercase letters in UTF-8 (U+00E0..U+00FE, except U+00F7).
+      unsigned char& next = reinterpret_cast<unsigned char&>(value[index + 1]);
+      if (next >= 0xA0 && next <= 0xBE && next != 0xB7) next -= 0x20;
+      ++index;
+    }
   }
   return value;
 }
@@ -489,8 +497,8 @@ void DrawStaticPage(Page page, HDC dc) {
 
   // These centers are derived from the printed boxes in the two authored
   // sheets at the native 1240x1080 panel size.
-  g_font.Draw(dc, "RUN TIME", 166.0f, 84.0f, 24.0f, kInk, true);
-  const char* titles[] = {"ITEMS", "DUNGEON MAP", "STATS", "RUN INFO", "ITEM PICKUPS", "COMPLETION / PROGRESS"};
+  g_font.Draw(dc, "TIEMPO", 166.0f, 84.0f, 24.0f, kInk, true);
+  const char* titles[] = {"OBJETOS", "MAPA", "ESTADÍSTICAS", "PARTIDA", "RECOGIDOS", "PROGRESO"};
   const char* title = titles[static_cast<size_t>(page)];
   const bool map_page = page == Page::kMap;
   const bool centered_page = page != Page::kStats && page != Page::kRunInfo;
@@ -642,13 +650,13 @@ void DrawDungeon(HDC dc) {
 }
 
 [[maybe_unused]] void DrawMapPage(HDC dc) {
-  const std::string floor = Clean(g_state.map.floor, "UNKNOWN FLOOR");
+  const std::string floor = Clean(g_state.map.floor, "PISO DESCONOCIDO");
   g_font.Draw(dc, Upper(floor), 422.0f, 90.0f, 29.0f, kInk, true);
   DrawDungeon(dc);
 
   const PlayerMetadata* player = FindPlayer(g_state.character_id);
   if (player) DrawAssetFit(dc, player->asset, Rect(900, 35, 1175, 240), false);
-  const std::string fallback = player ? player->name : "UNKNOWN";
+  const std::string fallback = player ? player->name : "DESCONOCIDO";
   g_font.Draw(dc, Upper(Clean(g_state.character_name, fallback)), 1037.0f,
               255.0f, 30.0f, kInk, true);
 
@@ -757,7 +765,7 @@ std::string RunTimer() {
 
 [[maybe_unused]] void DrawSlotName(HDC dc, const std::string& value, const RECT& slot,
                   float y, int capacity) {
-  const std::string name = Upper(Clean(value, "EMPTY"));
+  const std::string name = Upper(Clean(value, "VACÍO"));
   const float center = (slot.left + slot.right) * 0.5f;
   const float width = static_cast<float>(slot.right - slot.left - 8);
   const auto lines = g_font.Wrap(name, capacity > 1 ? 15.0f : 18.0f, width);
@@ -978,22 +986,22 @@ void DrawStatsMetricIcon(HDC dc, int index, const RECT& bounds) {
 void DrawStatsPage(HDC dc) {
   const PlayerMetadata* player = FindPlayer(g_state.character_id);
   const std::string name = Clean(g_state.character_name,
-                                 player ? player->name : "UNKNOWN");
+                                 player ? player->name : "DESCONOCIDO");
   DrawCharacterStickyNote(dc, player, name);
 
   const int black_half_hearts = CountBits(g_state.health.black_heart_mask);
   const std::array<std::pair<std::string, std::string>, 11> metrics = {{
-      {"HEALTH", HalfHeartValue(g_state.health.hearts)},
-      {"SOUL HEARTS", HalfHeartValue(g_state.health.soul_hearts)},
-      {"BLACK HEARTS", HalfHeartValue(black_half_hearts)},
-      {"DAMAGE", Decimal(g_state.stats.damage)},
-      {"TEARS", Decimal(g_state.stats.tears)},
-      {"RANGE", Decimal(g_state.stats.range)},
-      {"SHOT SPEED", Decimal(g_state.stats.shot_speed)},
-      {"SPEED", Decimal(g_state.stats.move_speed)},
-      {"LUCK", Decimal(g_state.stats.luck)},
-      {"DEVIL DEAL CHANCE", Percent(g_state.run.devil_chance)},
-      {"ANGEL DEAL CHANCE", Percent(g_state.run.angel_chance)},
+      {"VIDA", HalfHeartValue(g_state.health.hearts)},
+      {"CORAZ. ALMA", HalfHeartValue(g_state.health.soul_hearts)},
+      {"CORAZ. NEGROS", HalfHeartValue(black_half_hearts)},
+      {"DAÑO", Decimal(g_state.stats.damage)},
+      {"LÁGRIMAS", Decimal(g_state.stats.tears)},
+      {"ALCANCE", Decimal(g_state.stats.range)},
+      {"VEL. DISPARO", Decimal(g_state.stats.shot_speed)},
+      {"VELOCIDAD", Decimal(g_state.stats.move_speed)},
+      {"SUERTE", Decimal(g_state.stats.luck)},
+      {"PROB. DIABLO", Percent(g_state.run.devil_chance)},
+      {"PROB. ÁNGEL", Percent(g_state.run.angel_chance)},
   }};
   for (size_t index = 0; index < metrics.size(); ++index) {
     const float y = 590.0f + static_cast<float>(index) * 34.0f;
@@ -1014,7 +1022,7 @@ void DrawStatsPage(HDC dc) {
 
 // Six dots and the neighbouring page names make the swipe navigation visible.
 void DrawPageIndicator(HDC dc) {
-  const char* names[] = {"ITEMS", "MAP", "STATS", "RUN", "PICKUPS", "PROGRESS"};
+  const char* names[] = {"OBJETOS", "MAPA", "STATS", "PARTIDA", "RECOGIDOS", "PROGRESO"};
   const int current = static_cast<int>(g_page);
   const int spacing = 26;
   const int left = 620 - (kDashboardPageCount - 1) * spacing / 2;
@@ -1061,7 +1069,7 @@ void DrawDashboard(HDC dc) {
     DrawProgressPage(dc);
   } else {
     const std::string floor = Upper(Clean(
-        g_state.map.floor, Clean(g_state.run.floor, "UNKNOWN FLOOR")));
+        g_state.map.floor, Clean(g_state.run.floor, "PISO DESCONOCIDO")));
     g_font.Draw(dc, floor, 620.0f, 578.0f, 28.0f, kInk, true);
     if (g_state.map.curses != 0)
       g_font.Draw(dc, CurseNames(g_state.map.curses), 620.0f, 611.0f,
@@ -1177,7 +1185,7 @@ void DrawDescriptionBox(HDC dc) {
   DrawAssetStretch(dc, "custom/item_description_panel.png", box, true);
   ShownDescription shown;
   if (!ResolveDescription(&shown)) {
-    g_font.Draw(dc, "TAP AN ITEM TO SEE WHAT IT DOES", 620.0f, 884.0f, 24.0f,
+    g_font.Draw(dc, "TOCA UN OBJETO PARA VER QUÉ HACE", 620.0f, 884.0f, 24.0f,
                 kInk, true);
     return;
   }
@@ -1185,10 +1193,10 @@ void DrawDescriptionBox(HDC dc) {
   constexpr int text_left = 322;
   if (shown.icon) DrawItemAsset(dc, shown.icon, Rect(150, 836, 260, 946));
   const float max_width = static_cast<float>(box.right - 40 - text_left);
-  g_font.Draw(dc, Upper(Clean(shown.name, "UNKNOWN")), static_cast<float>(text_left),
+  g_font.Draw(dc, Upper(Clean(shown.name, "DESCONOCIDO")), static_cast<float>(text_left),
               800.0f, 27.0f, kWine);
   if (shown.quality >= 0)
-    g_font.Draw(dc, "QUALITY " + Number(shown.quality), 205.0f, 806.0f, 15.0f,
+    g_font.Draw(dc, "CALIDAD " + Number(shown.quality), 205.0f, 806.0f, 15.0f,
                 kInkMuted, true);
   // EID separates effects with line breaks; render each as its own bullet.
   std::vector<std::string> lines;
@@ -1211,7 +1219,7 @@ void DrawDescriptionBox(HDC dc) {
     y += 26.0f;
   }
   if (!shown.from_eid && g_state.descriptions.received)
-    g_font.Draw(dc, "SHORT GAME TEXT (EID NOT LOADED)",
+    g_font.Draw(dc, "TEXTO CORTO DEL JUEGO (EID NO CARGADO)",
                 static_cast<float>(text_left), static_cast<float>(box.bottom - 24), 13.0f,
                 kInkMuted);
 }
@@ -1219,7 +1227,7 @@ void DrawDescriptionBox(HDC dc) {
 void DrawItemsPage(HDC dc) {
   g_font.Draw(dc,
               Number(static_cast<int>(DisplayItems().size())) +
-                  (g_page == Page::kPickups ? " PICKUPS" : " ITEMS HELD"),
+                  (g_page == Page::kPickups ? " RECOGIDOS" : " OBJETOS"),
               620.0f, 552.0f, 22.0f, kInk, true);
 
   const int saved = SaveDC(dc);
@@ -1264,11 +1272,11 @@ void DrawItemsPage(HDC dc) {
 }
 
 std::string CurseNames(int mask) {
-  if (!mask) return "NONE";
+  if (!mask) return "NINGUNA";
   const std::pair<int, const char*> curses[] = {
-      {1, "DARKNESS"}, {2, "LABYRINTH"}, {4, "LOST"},
-      {8, "UNKNOWN"},  {16, "CURSED"},    {32, "MAZE"},
-      {64, "BLIND"},  {128, "GIANT"},
+      {1, "OSCURIDAD"}, {2, "LABERINTO"}, {4, "PERDIDO"},
+      {8, "DESCONOCIDO"},  {16, "MALDITO"},    {32, "CONFUSIÓN"},
+      {64, "CIEGO"},  {128, "GIGANTE"},
   };
   std::string result;
   for (const auto& curse : curses) {
@@ -1276,7 +1284,7 @@ std::string CurseNames(int mask) {
     if (!result.empty()) result += " / ";
     result += curse.second;
   }
-  return result.empty() ? "CURSE " + Number(mask) : result;
+  return result.empty() ? "MALDICIÓN " + Number(mask) : result;
 }
 
 [[maybe_unused]] const char* TransformationName(int id) {
@@ -1296,20 +1304,20 @@ void DrawGoal(HDC dc) {
   // Isaac has branching routes, not a single stored universal quest target.
   struct Milestone { int unlock, boss; const char* requirement; };
   const Milestone milestones[]={
-    {4,6,"Defeat Mom to open the Womb"},
-    {34,8,"Defeat Mom's Heart 11 times"},
-    {57,39,"Defeat Isaac 5 times for the Polaroid"},
-    {78,24,"Defeat Satan 5 times for the Negative"},
-    {407,63,"Defeat Hush 3 times to open the alternate path"},
-    {635,88,"Defeat Mother to open the strange door"}
+    {4,6,"Derrota a Mamá para abrir el Útero"},
+    {34,8,"Derrota al Corazón de Mamá 11 veces"},
+    {57,39,"Derrota a Isaac 5 veces para la Polaroid"},
+    {78,24,"Derrota a Satán 5 veces para el Negativo"},
+    {407,63,"Derrota a Hush 3 veces para abrir la ruta alternativa"},
+    {635,88,"Derrota a Madre para abrir la puerta extraña"}
   };
   const Milestone* target=nullptr;
   for(const auto& milestone:milestones) {
     if(g_state.progress.achievements[milestone.unlock]!='1') { target=&milestone; break; }
   }
-  g_font.Draw(dc,"GOAL",790,797,35,kInk,true);
+  g_font.Draw(dc,"OBJETIVO",790,797,35,kInk,true);
   if(!target) {
-    g_font.Draw(dc,"REVIEW REMAINING COMPLETION MARKS",790,856,19,kInk,true);
+    g_font.Draw(dc,"REVISA LAS MARCAS DE FINALIZACIÓN PENDIENTES",790,856,19,kInk,true);
     return;
   }
   const auto found=BossMetadata().find(target->boss);
@@ -1325,14 +1333,14 @@ void DrawRunInfoPage(HDC dc) {
   const RunInfo& run = g_state.run;
   const PlayerMetadata* player = FindPlayer(g_state.character_id);
   const std::string character = Clean(g_state.character_name,
-                                      player ? player->name : "UNKNOWN");
+                                      player ? player->name : "DESCONOCIDO");
   DrawCharacterStickyNote(dc, player, character);
 
   const std::array<std::pair<std::string, std::string>, 4> details = {{
-      {"SEED", Upper(run.seed.empty() ? "---- ----" : run.seed)},
-      {"DEPTH", Number(run.stage)},
-      {"TIME", RunTimer()},
-      {"TOTAL HITS", g_state.progress.total_hits < 0 ? "--" : Number(g_state.progress.total_hits)},
+      {"SEMILLA", Upper(run.seed.empty() ? "---- ----" : run.seed)},
+      {"PROFUNDIDAD", Number(run.stage)},
+      {"TIEMPO", RunTimer()},
+      {"GOLPES RECIBIDOS", g_state.progress.total_hits < 0 ? "--" : Number(g_state.progress.total_hits)},
   }};
   for (size_t index = 0; index < details.size(); ++index) {
     const float y = 600.0f + static_cast<float>(index) * 46.0f;
@@ -1349,9 +1357,9 @@ bool ProgressBit(const std::string& bits, int id) {
 void DrawProgressPage(HDC dc) {
   const auto& progress=g_state.progress;
   if(!progress.received) {
-    g_font.Draw(dc,"WAITING FOR SAVE PROGRESS",620,680,26,kInk,true); return;
+    g_font.Draw(dc,"ESPERANDO EL PROGRESO GUARDADO",620,680,26,kInk,true); return;
   }
-  const char* tabs[]={"REMAINING", "COMPLETED", "CHALLENGES", "BOSSES", "MARKS"};
+  const char* tabs[]={"PENDIENTE", "HECHO", "RETOS", "JEFES", "MARCAS"};
   for(int i=0;i<5;i++) {
     if(i==g_progress_tab) Frame(dc,Rect(100+i*208,548,302+i*208,592),kInk,2);
     g_font.Draw(dc,tabs[i],201.0f+i*208,557,18,kInk,true);
@@ -1359,14 +1367,14 @@ void DrawProgressPage(HDC dc) {
   if(g_progress_tab==4) {
     const int character=g_progress_character<0 ? std::clamp(g_state.character_id,0,40) : g_progress_character;
     const auto* player=FindPlayer(character);
-    g_font.Draw(dc,player ? Upper(player->name) : "CHARACTER",620,618,25,kInk,true);
+    g_font.Draw(dc,player ? Upper(player->name) : "PERSONAJE",620,618,25,kInk,true);
     if(progress.completion.size()!=492) {
-      g_font.Draw(dc,"WAITING FOR COMPLETION MARKS",620,720,22,kInk,true); return;
+      g_font.Draw(dc,"ESPERANDO LAS MARCAS",620,720,22,kInk,true); return;
     }
     const char* names[]={"MOM'S HEART","ISAAC","SATAN","BOSS RUSH","???","THE LAMB","MEGA SATAN","GREED","HUSH","DELIRIUM","MOTHER","THE BEAST"};
     for(int i=0;i<12;i++) {
       int value=progress.completion[character*12+i];
-      const char* status=(value&2) ? "HARD" : (value&1) ? "NORMAL" : (value&8) ? "ONLINE HARD" : (value&4) ? "ONLINE NORMAL" : "INCOMPLETE";
+      const char* status=(value&2) ? "DIFÍCIL" : (value&1) ? "NORMAL" : (value&8) ? "ONLINE DIFÍCIL" : (value&4) ? "ONLINE NORMAL" : "PENDIENTE";
       const float x=270.0f+(i%3)*350, y=682.0f+(i/3)*65;
       g_font.Draw(dc,names[i],x,y,21,kInk,true);
       g_font.Draw(dc,status,x,y+27,17,value ? kInk : kInkMuted,true);
@@ -1385,9 +1393,9 @@ void DrawProgressPage(HDC dc) {
     if((g_progress_tab==0 && done) || (g_progress_tab==1 && !done)) continue;
     entries.push_back(&pair.second);
   }
-  g_font.Draw(dc,Number(completed)+" COMPLETED / "+Number(static_cast<int>(metadata.size())-completed)+" REMAINING",620,605,21,kInk,true);
+  g_font.Draw(dc,Number(completed)+" HECHOS / "+Number(static_cast<int>(metadata.size())-completed)+" PENDIENTES",620,605,21,kInk,true);
   g_progress_offset=std::clamp(g_progress_offset,0,std::max(0,static_cast<int>(entries.size())-4));
-  if(progress.readonly) g_font.Draw(dc,"UNLOCKS RESTRICTED FOR THIS RUN",620,630,16,kWine,true);
+  if(progress.readonly) g_font.Draw(dc,"DESBLOQUEOS RESTRINGIDOS EN ESTA PARTIDA",620,630,16,kWine,true);
   for(int i=0;i<4 && g_progress_offset+i<static_cast<int>(entries.size());i++) {
     const auto& entry=*entries[g_progress_offset+i];
     const float y=652.0f+i*72;
@@ -1398,8 +1406,8 @@ void DrawProgressPage(HDC dc) {
     for(size_t line=0;line<std::min<size_t>(2,lines.size());line++)
       g_font.Draw(dc,lines[line],150,y+26+line*19,17,kInkMuted);
   }
-  g_font.Draw(dc,"< PREVIOUS",240,963,23,kInk,true);
-  g_font.Draw(dc,"NEXT >",1000,963,23,kInk,true);
+  g_font.Draw(dc,"< ANTERIOR",240,963,23,kInk,true);
+  g_font.Draw(dc,"SIGUIENTE >",1000,963,23,kInk,true);
 }
 
 void DrawWaiting(HDC dc) {
@@ -1414,14 +1422,14 @@ void DrawWaiting(HDC dc) {
   const char* heading = nullptr;
   const char* detail = nullptr;
   if (!g_state.last_packet_at) {
-    heading = "ISAAC IS LOADING";
-    detail = "CONNECTING LIVE RUN DATA";
+    heading = "ISAAC SE ESTÁ CARGANDO";
+    detail = "CONECTANDO CON LA PARTIDA";
   } else if (!connected) {
-    heading = "GAME DATA PAUSED";
-    detail = "RECONNECTING TO THE RUN";
+    heading = "DATOS EN PAUSA";
+    detail = "RECONECTANDO CON LA PARTIDA";
   } else {
-    heading = "START OR CONTINUE A RUN";
-    detail = "NATIVE GAME PATCH CONNECTED";
+    heading = "EMPIEZA O CONTINÚA UNA PARTIDA";
+    detail = "PARCHE DEL JUEGO CONECTADO";
   }
   g_font.Draw(dc, heading, kWidth / 2.0f, 690.0f, 44.0f,
               RGB(224, 201, 151), true);

@@ -119,14 +119,14 @@ internal fun LauncherHeader(
         }
         Spacer(Modifier.weight(1f))
         HeaderDestination(
-            label = "Play",
+            label = "Jugar",
             icon = Icons.Default.SportsEsports,
             selected = selected != LauncherNavItem.SETTINGS,
             onClick = onHome,
         )
         Spacer(Modifier.width(4.dp))
         HeaderDestination(
-            label = "Settings",
+            label = "Ajustes",
             icon = Icons.Default.Settings,
             selected = selected == LauncherNavItem.SETTINGS,
             onClick = onSettings,
@@ -245,12 +245,12 @@ internal fun SectionTitle(title: String, detail: String? = null) {
 @Composable
 internal fun StatusPill(state: GameInstallState) {
     val (label, tint) = when (state) {
-        GameInstallState.NOT_INSTALLED -> "NOT INSTALLED" to Color(0xFF969389)
-        GameInstallState.INSTALLING -> "INSTALLING" to LauncherAccent
-        GameInstallState.UPDATING_MOD -> "UPDATING MOD" to LauncherAccent
-        GameInstallState.IMPORTING_SAVE -> "IMPORTING SAVE" to LauncherAccent
-        GameInstallState.READY -> "READY" to LauncherSuccess
-        GameInstallState.ERROR -> "ACTION NEEDED" to LauncherDanger
+        GameInstallState.NOT_INSTALLED -> "NO INSTALADO" to Color(0xFF969389)
+        GameInstallState.INSTALLING -> "INSTALANDO" to LauncherAccent
+        GameInstallState.UPDATING_MOD -> "ACTUALIZANDO MOD" to LauncherAccent
+        GameInstallState.IMPORTING_SAVE -> "IMPORTANDO PARTIDAS" to LauncherAccent
+        GameInstallState.READY -> "LISTO" to LauncherSuccess
+        GameInstallState.ERROR -> "REVISAR" to LauncherDanger
     }
     Row(
         modifier = Modifier

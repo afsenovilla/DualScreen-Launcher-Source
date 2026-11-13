@@ -1,15 +1,15 @@
 {
-    "version": "isaac-native-j460-2026.11.13.02",
+    "version": "isaac-native-j460-2026.11.13.03",
     "files": [
         {
             "source": "native/winmm.dll",
             "target": "winmm.dll",
-            "sha256": "d91d312b77b714dc55aedace289d22a2345bdcacff1339f9b3312adf47bed60d"
+            "sha256": "a36b7743be2e6f05cb20b5624e3285cfc5d5f2ce401318a31b528b4e1b952af6"
         },
         {
             "source": "mod/main.lua",
             "target": "mods/DualScreenIsaac/main.lua",
-            "sha256": "7cc53e019bda20e16fa1abeabeeadb9e4f4e795c1e0043f48e216a8f0caef7c6"
+            "sha256": "b66c3dc8800501ae1d63eac96ef19b598eb22339fb93772e2f934dcb151619ea"
         },
         {
             "source": "mod/metadata.xml",

@@ -130,7 +130,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             setTextColor(0xFFE7DFC9.toInt())
             textSize = 20f
             gravity = android.view.Gravity.CENTER
-            text = "PREPARING GAME"
+            text = "PREPARANDO EL JUEGO"
         }
         root.addView(loading, FrameLayout.LayoutParams(-1, -1))
         runtimeMetrics = CompanionSessionMetrics(this)
@@ -193,7 +193,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         configurationLauncher: Boolean,
     ) {
         val app = application as DualScreenLauncherApplication
-        updateStatus("VERIFYING DUAL-SCREEN MOD", "Checking the bundled payload against the installed game")
+        updateStatus("VERIFICANDO EL MOD", "Comprobando el mod de doble pantalla")
         val payloadRefresh = app.installer.ensureCurrentPayload(game)
         if (payloadRefresh.isFailure) {
             val failure = payloadRefresh.exceptionOrNull()
@@ -207,7 +207,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         }
         val effectiveContainerId = currentInstall?.containerId ?: containerId
         val effectiveShortcutPath = currentInstall?.shortcutPath ?: shortcutPath
-        updateStatus("VERIFYING COPIED CONTAINER", "Resolving container $effectiveContainerId")
+        updateStatus("VERIFICANDO EL CONTENEDOR", "Contenedor $effectiveContainerId")
         val container = app.installerContainer(effectiveContainerId)
         val directShortcut = container?.let { loadShortcut(it, effectiveShortcutPath) }
         if (container == null || directShortcut == null) {
@@ -293,7 +293,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         if (!configurationLauncher && game.id == "isaac-repentance") {
             val gameRoot = target.parentFile
             if (gameRoot != null && !com.dualscreen.launcher.IsaacEid.installed(gameRoot)) {
-                updateStatus("DOWNLOADING ITEM DESCRIPTIONS", "External Item Descriptions (one time)")
+                updateStatus("DESCARGANDO DESCRIPCIONES", "External Item Descriptions (solo la primera vez)")
             }
             val eid = gameRoot != null && withContext(Dispatchers.IO) {
                 com.dualscreen.launcher.IsaacEid.ensure(gameRoot)
@@ -354,7 +354,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             )
         }
 
-        updateStatus("INITIALIZING TESTED WINDOWS RUNTIME", "Preparing Wine, prefix, renderer and mounts")
+        updateStatus("INICIANDO WINDOWS (WINE)", "Preparando Wine y el renderizador")
         val session = WemuRuntimeEngine.INSTANCE.createSession(this, this, container, shortcut)
         runtime = session
         refreshSecondaryDisplay()
@@ -390,9 +390,9 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             if (configurationLauncher) {
                 "STARTING ${game.title.uppercase(Locale.ROOT)} LAUNCHER"
             } else {
-                "STARTING ${game.title.uppercase(Locale.ROOT)}"
+                "INICIANDO ${game.title.uppercase(Locale.ROOT)}"
             },
-            "Submitting the final guest command",
+            "Arrancando el juego",
         )
 
         val started = withContext(Dispatchers.IO) { runCatching { session.start() } }
@@ -672,7 +672,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
     private fun finishWithMessage(message: String) {
         Log.e(TAG, message)
         if (::launchStatus.isInitialized) launchStatus.failed(message)
-        loading.text = "$message\n\nTAP TO RETURN"
+        loading.text = "$message\n\nTOCA PARA VOLVER"
         loading.setTextColor(0xFFFF8A80.toInt())
         loading.visibility = View.VISIBLE
         loading.alpha = 1f

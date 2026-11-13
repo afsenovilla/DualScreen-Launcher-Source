@@ -208,6 +208,13 @@ local function describe(key, variant, subtype, fallbackName, fallbackText)
 end
 
 local function sendDescriptions(player)
+    -- Spanish descriptions on both screens, whatever the game language is.
+    if type(EID) == "table" and type(EID.Config) == "table" and
+       type(EID.descriptions) == "table" and EID.descriptions["spa"] ~= nil and
+       EID.Config["Language"] ~= "spa" then
+        EID.Config["Language"] = "spa"
+        descriptionCache = {}
+    end
     local entries, keys, total = {}, {}, 0
     local function add(key, variant, subtype, name, text)
         if #entries >= 160 then return end

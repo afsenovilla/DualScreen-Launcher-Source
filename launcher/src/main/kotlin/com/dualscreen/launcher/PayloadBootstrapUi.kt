@@ -106,9 +106,9 @@ internal fun PayloadBootstrapPage(
 
 @Composable
 private fun CheckingPayloads() {
-    Text("Preparing launcher", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+    Text("Preparando el launcher", fontSize = 25.sp, fontWeight = FontWeight.Bold)
     Text(
-        "Checking the verified runtime and game-mod payloads…",
+        "Comprobando los componentes descargados…",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 12.sp,
     )
@@ -121,7 +121,7 @@ private fun CheckingPayloads() {
 
 @Composable
 private fun PayloadProgress(state: PayloadBootstrapState.Progress) {
-    Text("First-time setup", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+    Text("Primera configuración", fontSize = 25.sp, fontWeight = FontWeight.Bold)
     Text(
         state.detail,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -133,7 +133,7 @@ private fun PayloadProgress(state: PayloadBootstrapState.Progress) {
     )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
-            "PACK ${state.currentPack + 1} OF ${state.totalPacks}",
+            "PAQUETE ${state.currentPack + 1} DE ${state.totalPacks}",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = FontFamily.Monospace,
             fontSize = 9.sp,
@@ -163,7 +163,7 @@ private fun PayloadProgress(state: PayloadBootstrapState.Progress) {
         )
     }
     Text(
-        "Keep the launcher open. Every download is verified before it is installed.",
+        "No cierres la app. Cada descarga se verifica antes de instalarse.",
         color = Color(0xFF817E74),
         fontSize = 10.sp,
     )
@@ -171,7 +171,7 @@ private fun PayloadProgress(state: PayloadBootstrapState.Progress) {
 
 @Composable
 private fun PayloadFailure(message: String, onRetry: () -> Unit) {
-    Text("Setup could not finish", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+    Text("No se pudo completar", fontSize = 25.sp, fontWeight = FontWeight.Bold)
     Text(message, color = LauncherDanger, fontSize = 12.sp)
     Button(
         onClick = onRetry,
@@ -180,15 +180,15 @@ private fun PayloadFailure(message: String, onRetry: () -> Unit) {
     ) {
         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(7.dp))
-        Text("Retry Download", fontWeight = FontWeight.Bold)
+        Text("Reintentar descarga", fontWeight = FontWeight.Bold)
     }
 }
 
 private val PayloadBootstrapPhase.label: String
     get() = when (this) {
-        PayloadBootstrapPhase.DOWNLOAD -> "DOWNLOADING"
-        PayloadBootstrapPhase.VERIFY -> "VERIFYING"
-        PayloadBootstrapPhase.INSTALL -> "INSTALLING"
+        PayloadBootstrapPhase.DOWNLOAD -> "DESCARGANDO"
+        PayloadBootstrapPhase.VERIFY -> "VERIFICANDO"
+        PayloadBootstrapPhase.INSTALL -> "INSTALANDO"
     }
 
 @Composable
