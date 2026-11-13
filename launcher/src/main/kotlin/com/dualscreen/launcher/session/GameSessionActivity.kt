@@ -123,6 +123,8 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         )
         val app = application as DualScreenLauncherApplication
         if (app.settings.settings.value.keepScreenAwake) window.addFlags(FLAG_KEEP_SCREEN_ON)
+        com.wemu.engine.inputcontrols.ExternalController.swapFaceButtons =
+            app.settings.settings.value.swapFaceButtons
         hideSystemUi()
         root = FrameLayout(this)
         loading = TextView(this).apply {

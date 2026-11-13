@@ -70,6 +70,7 @@ internal fun SettingsPage(
     gpuDriverImportState: GpuDriverImportState,
     gpuDriverMessage: String?,
     onKeepAwake: (Boolean) -> Unit,
+    onSwapFaceButtons: (Boolean) -> Unit,
     onResolution: (GameResolution) -> Unit,
     onGpuDriver: (String) -> Unit,
     onImportGpuDriver: () -> Unit,
@@ -122,7 +123,7 @@ internal fun SettingsPage(
             verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             item {
-                LauncherCard(modifier = Modifier.height(230.dp), compact = true) {
+                LauncherCard(modifier = Modifier.height(290.dp), compact = true) {
                     SettingsSectionHeading(
                         icon = Icons.Default.Smartphone,
                         title = "Display & session",
@@ -133,6 +134,12 @@ internal fun SettingsPage(
                         detail = "Prevent either screen from sleeping during play.",
                         checked = settings.keepScreenAwake,
                         onCheckedChange = onKeepAwake,
+                    )
+                    CompactSwitch(
+                        title = "Botones estilo Nintendo",
+                        detail = "Intercambia A/B y X/Y para que cada botón actúe por su posición.",
+                        checked = settings.swapFaceButtons,
+                        onCheckedChange = onSwapFaceButtons,
                     )
                     Text("TOP-SCREEN GAME RESOLUTION", style = settingLabelStyle())
                     Row(

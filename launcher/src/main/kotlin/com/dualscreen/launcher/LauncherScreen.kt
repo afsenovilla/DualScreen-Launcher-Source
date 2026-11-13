@@ -216,6 +216,7 @@ internal fun LauncherScreen(
                         gpuDriverImportState = gpuDriverImportState,
                         gpuDriverMessage = gpuDriverMessage,
                         onKeepAwake = model::setKeepScreenAwake,
+                        onSwapFaceButtons = model::setSwapFaceButtons,
                         onResolution = model::setResolution,
                         onGpuDriver = model::setGpuDriver,
                         onImportGpuDriver = {

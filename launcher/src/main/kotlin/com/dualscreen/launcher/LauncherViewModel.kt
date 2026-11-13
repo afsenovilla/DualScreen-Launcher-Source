@@ -218,6 +218,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setKeepScreenAwake(enabled: Boolean) = app.settings.setKeepScreenAwake(enabled)
 
+    fun setSwapFaceButtons(enabled: Boolean) = app.settings.setSwapFaceButtons(enabled)
+
     fun setResolution(resolution: GameResolution) = app.settings.setResolution(resolution)
 
     fun setGpuDriver(driverId: String) {

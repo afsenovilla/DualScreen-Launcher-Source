@@ -9,6 +9,7 @@ const val DEFAULT_CAPTURED_GPU_DRIVER = "turnip26.2.0"
 
 data class LauncherSettings(
     val keepScreenAwake: Boolean = true,
+    val swapFaceButtons: Boolean = true,
     val resolution: GameResolution = GameResolution.HD,
     val gpuDriverId: String = DEFAULT_CAPTURED_GPU_DRIVER,
 )
@@ -39,6 +40,10 @@ class LauncherSettingsStore(context: Context) {
         mutableSettings.value.copy(keepScreenAwake = enabled),
     )
 
+    fun setSwapFaceButtons(enabled: Boolean) = update(
+        mutableSettings.value.copy(swapFaceButtons = enabled),
+    )
+
     fun setResolution(resolution: GameResolution) = update(
         mutableSettings.value.copy(resolution = resolution),
     )
@@ -52,6 +57,7 @@ class LauncherSettingsStore(context: Context) {
     private fun update(value: LauncherSettings) {
         preferences.edit()
             .putBoolean(KEY_KEEP_AWAKE, value.keepScreenAwake)
+            .putBoolean(KEY_SWAP_FACE, value.swapFaceButtons)
             .putString(KEY_RESOLUTION, value.resolution.containerValue)
             .putString(KEY_GPU_DRIVER, value.gpuDriverId)
             .apply()
@@ -60,6 +66,7 @@ class LauncherSettingsStore(context: Context) {
 
     private fun read() = LauncherSettings(
         keepScreenAwake = preferences.getBoolean(KEY_KEEP_AWAKE, true),
+        swapFaceButtons = preferences.getBoolean(KEY_SWAP_FACE, true),
         resolution = GameResolution.fromStorage(preferences.getString(KEY_RESOLUTION, null)),
         gpuDriverId = preferences.getString(KEY_GPU_DRIVER, DEFAULT_CAPTURED_GPU_DRIVER)
             ?.ifBlank { DEFAULT_CAPTURED_GPU_DRIVER }
@@ -69,6 +76,7 @@ class LauncherSettingsStore(context: Context) {
     private companion object {
         const val PREFERENCES_NAME = "launcher-settings"
         const val KEY_KEEP_AWAKE = "keep-screen-awake"
+        const val KEY_SWAP_FACE = "swap-face-buttons"
         const val KEY_RESOLUTION = "game-resolution"
         const val KEY_GPU_DRIVER = "gpu-driver"
     }

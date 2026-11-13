@@ -572,16 +572,23 @@ public class ExternalController {
         return (event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK && event.getAction() == MotionEvent.ACTION_MOVE;
     }
 
+    /**
+     * Devices labelled with the Nintendo layout (X top, Y left, A right, B
+     * bottom) report keycodes by label. Games expect the Xbox layout by
+     * position, so swap A/B and X/Y to keep each physical button in place.
+     */
+    public static volatile boolean swapFaceButtons = false;
+
     public static int getButtonIdxByKeyCode(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_A:
-                return IDX_BUTTON_A;
+                return swapFaceButtons ? IDX_BUTTON_B : IDX_BUTTON_A;
             case KeyEvent.KEYCODE_BUTTON_B:
-                return IDX_BUTTON_B;
+                return swapFaceButtons ? IDX_BUTTON_A : IDX_BUTTON_B;
             case KeyEvent.KEYCODE_BUTTON_X:
-                return IDX_BUTTON_X;
+                return swapFaceButtons ? IDX_BUTTON_Y : IDX_BUTTON_X;
             case KeyEvent.KEYCODE_BUTTON_Y:
-                return IDX_BUTTON_Y;
+                return swapFaceButtons ? IDX_BUTTON_X : IDX_BUTTON_Y;
             case KeyEvent.KEYCODE_BUTTON_L1:
                 return IDX_BUTTON_L1;
             case KeyEvent.KEYCODE_BUTTON_R1:
