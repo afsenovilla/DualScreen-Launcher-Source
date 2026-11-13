@@ -9,11 +9,25 @@
 namespace isaacds {
 namespace {
 
-constexpr uint64_t kExpectedBytes = 9362944ull;
+// Both accepted files are the same J460 linker output (identical timestamp and
+// identical .text/.rdata/.data layout). The Steam executable additionally
+// carries the SteamStub `.bind` section; the DRM-free executable does not.
+// Every RVA used by the native hooks is identical in both.
+struct KnownBuild {
+  uint64_t bytes;
+  uint32_t image_size;
+  const char* sha256;
+  const char* label;
+};
 constexpr uint32_t kExpectedTimestamp = 0x69E6E3A7u;
-constexpr uint32_t kExpectedImageSize = 0x0092C000u;
-constexpr char kExpectedSha256[] =
-    "e5faf6f513c6de9cc9ff1c335ef9c541e2b33fc623aa3b8ffbd2e6a6c0027bb0";
+constexpr KnownBuild kKnownBuilds[] = {
+    {9362944ull, 0x0092C000u,
+     "e5faf6f513c6de9cc9ff1c335ef9c541e2b33fc623aa3b8ffbd2e6a6c0027bb0",
+     "Repentance+ v1.9.7.17.J460 (PE32 Steam build)"},
+    {9176064ull, 0x008FE000u,
+     "b4743967f3d31050f7b4222e42ac6beae6a0b7850b1f1adaac07ef7b94d01ec8",
+     "Repentance+ v1.9.7.17.J460 (PE32 DRM-free build)"},
+};
 
 bool HashFile(const wchar_t* path, char output[65], uint64_t* file_size) {
   if (!path || !output || !file_size) return false;
@@ -121,15 +135,20 @@ BuildIdentity IdentifyExecutablePath(const wchar_t* path) {
     std::snprintf(result.label, sizeof(result.label), "executable hash failed");
     return result;
   }
-  result.supported = result.machine == IMAGE_FILE_MACHINE_I386 &&
-                     result.timestamp == kExpectedTimestamp &&
-                     result.image_size == kExpectedImageSize &&
-                     result.file_size == kExpectedBytes &&
-                     std::strcmp(result.sha256, kExpectedSha256) == 0;
-  std::snprintf(result.label, sizeof(result.label),
-                result.supported
-                    ? "Repentance+ v1.9.7.17.J460 (PE32 exact build)"
-                    : "unsupported Binding of Isaac executable");
+  const char* label = "unsupported Binding of Isaac executable";
+  if (result.machine == IMAGE_FILE_MACHINE_I386 &&
+      result.timestamp == kExpectedTimestamp) {
+    for (const KnownBuild& build : kKnownBuilds) {
+      if (result.image_size == build.image_size &&
+          result.file_size == build.bytes &&
+          std::strcmp(result.sha256, build.sha256) == 0) {
+        result.supported = true;
+        label = build.label;
+        break;
+      }
+    }
+  }
+  std::snprintf(result.label, sizeof(result.label), "%s", label);
   return result;
 }
 

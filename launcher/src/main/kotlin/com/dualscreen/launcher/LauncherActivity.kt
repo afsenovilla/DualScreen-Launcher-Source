@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.lifecycleScope
-import com.dualscreen.launcher.access.AccessGate
-import com.dualscreen.launcher.access.AccessState
 import com.dualscreen.launcher.session.GameSessionActivity
 import com.dualscreen.launcher.switch.SwitchGameDefinition
 import com.thor.core.display.DisplayTopology
@@ -33,7 +31,6 @@ import kotlinx.coroutines.launch
 
 class LauncherActivity : ComponentActivity() {
     private val model: LauncherViewModel by viewModels()
-    private val access get() = (application as DualScreenLauncherApplication).access
     private var lowerPanel: LauncherPanelPresentation? = null
     private var storagePermissionPrompted = false
     private var launcherStarted = false
@@ -44,30 +41,18 @@ class LauncherActivity : ComponentActivity() {
         window.decorView.systemUiVisibility = FULLSCREEN_FLAGS
         setContent {
             LauncherTheme {
-                AccessGate(access) {
-                    LauncherScreen(
-                        model = model,
-                        onPlay = { game, installed -> launch(game, installed, configuration = false) },
-                        onConfigure = { game, installed -> launch(game, installed, configuration = true) },
-                        onPlaySwitch = ::launchSwitch,
-                    )
-                }
+                LauncherScreen(
+                    model = model,
+                    onPlay = { game, installed -> launch(game, installed, configuration = false) },
+                    onConfigure = { game, installed -> launch(game, installed, configuration = true) },
+                    onPlaySwitch = ::launchSwitch,
+                )
             }
         }
-        lifecycleScope.launch {
-            access.state.collectLatest { state ->
-                if (state is AccessState.Granted) {
-                    startLauncherAfterAccess()
-                } else {
-                    lowerPanel?.dismiss()
-                    lowerPanel = null
-                }
-            }
-        }
-        handleAccessCallback(intent)
+        startLauncher()
     }
 
-    private fun startLauncherAfterAccess() {
+    private fun startLauncher() {
         if (launcherStarted) {
             if (hasWindowFocus()) showLowerPanel()
             return
@@ -133,25 +118,9 @@ class LauncherActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         window.decorView.systemUiVisibility = FULLSCREEN_FLAGS
-        if (launcherStarted && access.state.value is AccessState.Granted) {
+        if (launcherStarted) {
             model.refreshUpdates()
             showLowerPanel()
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleAccessCallback(intent)
-    }
-
-    private fun handleAccessCallback(intent: Intent?) {
-        val uri = intent?.data ?: return
-        if (uri.scheme == "dualscreen" && uri.host == "auth" && uri.path == "/callback") {
-            // Do not retain the one-time OAuth completion secret in the
-            // Activity's saved Intent after handing it to the access manager.
-            setIntent(Intent(intent).setData(null))
-            lifecycleScope.launch { access.handleOAuthCallback(uri) }
         }
     }
 

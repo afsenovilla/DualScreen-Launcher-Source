@@ -139,8 +139,11 @@ $researchExe = Join-Path $workspaceRoot '.research\isaac\device-original\isaac-n
 if (Test-Path -LiteralPath $researchExe -PathType Leaf) {
     $item = Get-Item -LiteralPath $researchExe
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $researchExe).Hash.ToLowerInvariant()
-    if ($item.Length -ne 9362944L -or
-        $hash -ne 'e5faf6f513c6de9cc9ff1c335ef9c541e2b33fc623aa3b8ffbd2e6a6c0027bb0') {
+    $steamBuild = $item.Length -eq 9362944L -and
+        $hash -eq 'e5faf6f513c6de9cc9ff1c335ef9c541e2b33fc623aa3b8ffbd2e6a6c0027bb0'
+    $drmFreeBuild = $item.Length -eq 9176064L -and
+        $hash -eq 'b4743967f3d31050f7b4222e42ac6beae6a0b7850b1f1adaac07ef7b94d01ec8'
+    if (-not ($steamBuild -or $drmFreeBuild)) {
         throw 'The local exact-build executable evidence no longer matches J460.'
     }
     $identityTest = Join-Path $testRoot 'BuildIdentityTests.exe'
@@ -241,7 +244,7 @@ if (-not $SkipLauncherPayloadUpdate) {
             })
         }
     $manifest = [ordered]@{
-        version = 'isaac-native-j460-2026.09.07.02'
+        version = 'isaac-native-j460-2026.11.13.01'
         files = $files
         remove = @('resources/scripts/isaac_second_screen.dll')
     }
