@@ -205,7 +205,6 @@ class GameInstaller(
         installLock.withLock {
             val result = runCatching {
                 var installed = registry.get(game.id) ?: return@runCatching null
-                OnDemandGamePayloads.ensure(context, game.id)
                 if (preset.requiresDedicatedContainer(game)) {
                     installed = ensureDedicatedContainer(game, installed)
                 }
@@ -292,7 +291,6 @@ class GameInstaller(
         allowUntestedVersion: Boolean,
     ): InstalledGame {
         begin(game)
-        OnDemandGamePayloads.ensure(context, game.id)
         val installStartedAt = SystemClock.elapsedRealtime()
         val setupStartedAt = installStartedAt
         val container = preset.prepare(game) { stage, local, detail ->

@@ -1,36 +1,15 @@
 {
-    "schema":  1,
-    "version":  "2026.09.06.2",
-    "repository":  "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads",
-    "tag":  "launcher-payloads-v1",
-    "packs":  [
-                  {
-                      "name":  "runtime-components-2026.08.30.1.zip",
-                      "root":  "components",
-                      "bytes":  649863301,
-                      "sha256":  "96860b08e0d4ba33c1e46ffba085493cc8e48a20265da8f351ccd781a13fc85b",
-                      "url":  "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads/releases/download/launcher-payloads-v1/runtime-components-2026.08.30.1.zip"
-                  },
-                  {
-                      "name":  "game-mods-2026.09.04.12.zip",
-                      "root":  "mods",
-                      "bytes":  197175169,
-                      "sha256":  "61b16d29caa1d23e78169524c61c3b0b3c02cf27f8f77d156264ed0a881452ed",
-                      "url":  "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads/releases/download/launcher-payloads-v1/game-mods-2026.09.04.12.zip"
-                  },
-                  {
-                      "name": "botw-module-1.0.1-r2.zip",
-                      "root": "botw",
-                      "bytes": 36758610,
-                      "sha256": "394610f498041038c334eddf311b79100ab9074bb3e0190f1ea7a25c6db3dcb5",
-                      "url": "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads/releases/download/launcher-payloads-v1/botw-module-1.0.1-r2.zip"
-                  },
-                  {
-                      "name": "plza-module-1.0.1-r2.zip",
-                      "root": "plza",
-                      "bytes": 30552338,
-                      "sha256": "52f2ae7ab8305db2c7693455d96f06eae0a867bcbba71d0f08a05574de124d09",
-                      "url": "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads/releases/download/launcher-payloads-v1/plza-module-1.0.1-r2.zip"
-                  }
-              ]
+  "schema": 1,
+  "version": "2026.09.06.2",
+  "repository": "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads",
+  "tag": "launcher-payloads-v1",
+  "packs": [
+    {
+      "name": "runtime-components-2026.08.30.1.zip",
+      "root": "components",
+      "bytes": 649863301,
+      "sha256": "96860b08e0d4ba33c1e46ffba085493cc8e48a20265da8f351ccd781a13fc85b",
+      "url": "https://github.com/JoeCorrell/DualScreen-Launcher-Payloads/releases/download/launcher-payloads-v1/runtime-components-2026.08.30.1.zip"
+    }
+  ]
 }

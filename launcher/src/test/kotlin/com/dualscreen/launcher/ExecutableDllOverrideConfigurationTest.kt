@@ -7,16 +7,19 @@ import java.nio.file.Files
 
 class ExecutableDllOverrideConfigurationTest {
     @Test
-    fun ac2CatalogAudioAndPanelPoliciesAreAcceptedAndRemainExecutableScoped() {
+    fun audioAndPanelPoliciesAreAcceptedAndRemainExecutableScoped() {
         val root = Files.createTempDirectory("ac2-overrides").toFile()
         try {
-            val game = checkNotNull(GameCatalog.byId("assassins-creed-ii"))
             File(root, ".wine").mkdirs()
             val registry = File(root, ".wine/user.reg").apply {
                 writeText("WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n\"dsound\"=\"native\"\n")
             }
             repeat(2) {
-                ExecutableDllOverrideConfiguration.ensure(root, game.executableCandidates.single(), game.nativeDllOverrides)
+                ExecutableDllOverrideConfiguration.ensure(
+                    root,
+                    "AssassinsCreedIIGame.exe",
+                    mapOf("dinput8" to "native,builtin", "dsound" to "builtin,native"),
+                )
             }
             val key = "Software\\Wine\\AppDefaults\\AssassinsCreedIIGame.exe\\DllOverrides"
             com.wemu.engine.core.WineRegistryEditor(registry).use { editor ->

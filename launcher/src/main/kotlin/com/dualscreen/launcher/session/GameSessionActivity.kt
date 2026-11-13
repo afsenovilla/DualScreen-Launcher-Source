@@ -31,30 +31,18 @@ import com.dualscreen.launcher.DualScreenLauncherApplication
 import com.dualscreen.launcher.DualscreenStorage
 import com.dualscreen.launcher.ExecutableDllOverrideConfiguration
 import com.dualscreen.launcher.GameCatalog
-import com.dualscreen.launcher.Fallout3LaunchConfiguration
-import com.dualscreen.launcher.GameResolution
 import com.dualscreen.launcher.LaunchStatusStore
 import com.dualscreen.launcher.LowerPanelMode
 import com.dualscreen.launcher.PresetContainerManager
 import com.dualscreen.launcher.SupportedGame
-import com.dualscreen.launcher.SkyrimGamepadConfiguration
-import com.dualscreen.launcher.Ac2GamepadConfiguration
-import com.dualscreen.launcher.WfcPrerequisiteConfiguration
-import com.dualscreen.launcher.WfcDisplayConfiguration
 import com.dualscreen.launcher.resolveConfigurationLauncherExecutable
 import com.dualscreen.launcher.supportedGameLaunchEnvironment
-import com.dualscreen.launcher.supportedGameTranslatorExtras
-import com.dualscreen.launcher.Ac2WowBox64Configuration
-import com.dualscreen.launcher.supportedGameFexCoreVersion
-import com.dualscreen.launcher.supportedGameDirectXConfig
-import com.dualscreen.launcher.supportedGameGpuDriverId
 import com.thor.core.display.DisplayTopology
 import com.wemu.engine.XServerHost
 import com.wemu.engine.container.Container
 import com.wemu.engine.container.Shortcut
 import com.wemu.engine.core.Callback
 import com.wemu.engine.core.ProcessHelper
-import com.wemu.engine.session.StardewDisplayCompatibility
 import com.wemu.engine.renderer.ASurfaceRenderer
 import com.wemu.engine.renderer.SecondScreenOutput
 import com.wemu.engine.widget.InputControlsView
@@ -101,11 +89,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
     @Volatile private var keyboardTargetScore = Int.MIN_VALUE
     @Volatile private var keyboardTargetIdentity = ""
     private val keyboardFocusLogged = AtomicBoolean(false)
-    private val gameInputFocusEstablished = AtomicBoolean(false)
-    private val wfcPanelWindowSeen = AtomicBoolean(false)
-    private val wfcPanelFocusCheckScheduled = AtomicBoolean(false)
-    private val wfcPostPanelFocusScheduled = AtomicBoolean(false)
-    private val wfcNativeViewportFocusScheduled = AtomicBoolean(false)
     private val cursorShown = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val gameWindowVisible = AtomicBoolean(false)
@@ -253,19 +236,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             directShortcut
         }
 
-        val requestedResolution = app.settings.settings.value.resolution
-        // WFC's upper viewport and the dual-monitor geometry are an exact
-        // compatibility contract: the game renders a native 1280x720 client
-        // while the companion owns the separate 1240x1080 lower monitor.
-        // Letting the global launcher preference change this value recreates
-        // the off-screen/stretched window regression and makes the panel's
-        // fallback origin incorrect. Dishonored's verified stacked-desktop
-        // launch uses the same geometry; other games retain the user setting.
-        val selectedResolution = if (game.id in setOf("transformers-wfc", "dishonored")) {
-            GameResolution.HD
-        } else {
-            requestedResolution
-        }
+        val selectedResolution = app.settings.settings.value.resolution
         val resolutionChanged = withContext(Dispatchers.IO) {
             if (container.screenSize == selectedResolution.containerValue) {
                 false
@@ -278,13 +249,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         }
         launchStatus.record(
             "DISPLAY",
-            "fullscreen=${if (game.id == "stardew-valley") "exclusive" else "borderless"} " +
-                "resolution=${selectedResolution.containerValue} " +
-                (if (selectedResolution != requestedResolution) {
-                    "requested=${requestedResolution.containerValue} compatibilityOverride=true "
-                } else {
-                    ""
-                }) +
+            "fullscreen=borderless resolution=${selectedResolution.containerValue} " +
                 "containerChanged=$resolutionChanged dpi=${container.dpi}",
         )
 
@@ -304,36 +269,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             )
         } else {
             launchStatus.record("CONTAINER", "Runtime materialization revision is current")
-        }
-
-        if (game.id == "stardew-valley") {
-            val display = withContext(Dispatchers.IO) {
-                StardewDisplayCompatibility.ensure(
-                    container.rootDir,
-                    selectedResolution.width,
-                    selectedResolution.height,
-                )
-            }
-            if (!display.successful) {
-                val detail = "Could not repair Stardew display profile at ${display.preferencesFile}"
-                Log.e(TAG, detail)
-                finishWithMessage(detail)
-                return
-            }
-            launchStatus.record(
-                "DISPLAY",
-                when {
-                    !display.profileExists ->
-                        "Stardew startup profile is not present yet; the game will create it at " +
-                            selectedResolution.containerValue
-                    display.changed ->
-                        "Repaired Stardew startup profile for ${selectedResolution.containerValue}; " +
-                            "fields=${display.matchedFields}/${display.expectedFields}"
-                    else ->
-                        "Verified Stardew startup profile for ${selectedResolution.containerValue}; " +
-                            "fields=${display.matchedFields}/${display.expectedFields}"
-                },
-            )
         }
 
         val target = resolveGuestTarget(container, shortcut.path)
@@ -370,128 +305,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             )
         }
 
-        if (game.id == "fallout3") {
-            val gameRoot = target.parentFile
-            val guestGameRoot = shortcut.path
-                .trim('"')
-                .substringBeforeLast('\\', missingDelimiterValue = "C:\\Games\\fallout3")
-            val fallout = withContext(Dispatchers.IO) {
-                runCatching {
-                    Fallout3LaunchConfiguration.ensure(
-                        container.rootDir,
-                        checkNotNull(gameRoot) { "Fallout 3's game directory is unavailable" },
-                        guestGameRoot,
-                        selectedResolution.width,
-                        selectedResolution.height,
-                    )
-                }
-            }.getOrElse { failure ->
-                Log.e(TAG, "Could not prepare Fallout 3's launcher configuration", failure)
-                finishWithMessage("Fallout 3 setup failed: ${failure.message}")
-                return
-            }
-            launchStatus.record(
-                "COMPATIBILITY",
-                "Fallout registry and launch profile verified; " +
-                    "installedPath=${fallout.installedPath} " +
-                    "dinput8=${fallout.dinput8Override} " +
-                    "userReg=${fallout.userRegistry.absolutePath} " +
-                    "falloutIni=${fallout.falloutIni.absolutePath} " +
-                    "prefs=${fallout.preferencesFile.absolutePath} " +
-                    "seededIni=${fallout.seededFalloutIni} " +
-                    "seededPrefs=${fallout.seededPreferences} controller=enabled " +
-                    "display=${fallout.displayWidth}x${fallout.displayHeight}",
-            )
-        }
-
-        if (game.id == "assassins-creed-ii") {
-            val gamepad = withContext(Dispatchers.IO) {
-                runCatching { Ac2GamepadConfiguration.ensureEnabled(container.rootDir) }
-            }.getOrElse { failure ->
-                Log.e(TAG, "Could not enable AC II controller input", failure)
-                finishWithMessage("AC II controller setup failed: ${failure.message}")
-                return
-            }
-            // This engine discovers its Xenon pad via DirectInput enumeration.
-            // Skyrim's XInput-only registry policy hides that bootstrap device.
-            shortcut.putExtra("inputType", "12")
-            shortcut.putExtra("exclusiveXInput", "0")
-            shortcut.saveData()
-            launchStatus.record(
-                "INPUT",
-                "AC II controller profile: DirectInput discovery + XInput; Xbox 360 identity; " +
-                    "prefs=${gamepad.preferencesFile.absolutePath} changed=${gamepad.changed}",
-            )
-        }
-
-        if (game.id == "skyrim-se") {
-            val gameRoot = target.parentFile
-            val gamepad = withContext(Dispatchers.IO) {
-                runCatching {
-                    checkNotNull(gameRoot) { "Skyrim's game directory is unavailable" }
-                    val bundledOverride = com.dualscreen.launcher.PayloadAssetStore.open(
-                        this@GameSessionActivity,
-                        "mods/skyrim-se/payload/SkyrimGamepad.ini",
-                    ).bufferedReader().use { it.readText() }
-                    SkyrimGamepadConfiguration.ensureEnabled(
-                        container.rootDir,
-                        gameRoot,
-                        bundledOverride,
-                        selectedResolution,
-                    )
-                }
-            }.getOrElse { failure ->
-                Log.e(TAG, "Could not enable Skyrim controller input", failure)
-                finishWithMessage("Skyrim controller setup failed: ${failure.message}")
-                return
-            }
-            launchStatus.record(
-                "INPUT",
-                "Skyrim gamepad enabled; prefs=${gamepad.preferencesFile.absolutePath} " +
-                    "changed=${gamepad.changed} bridgeInputType=${container.inputType} " +
-                    "fullscreen=borderless resolution=${selectedResolution.containerValue}",
-            )
-        }
-
-        if (!configurationLauncher && game.id == "transformers-wfc") {
-            val display = withContext(Dispatchers.IO) {
-                runCatching {
-                    WfcDisplayConfiguration.ensure(container.rootDir, selectedResolution)
-                }
-            }.getOrElse { failure ->
-                Log.e(TAG, "Could not prepare WFC's upper-screen viewport", failure)
-                finishWithMessage("Transformers display setup failed: ${failure.message}")
-                return
-            }
-            val launchArguments = WfcDisplayConfiguration.launchArguments(selectedResolution)
-            if (shortcut.getExtra("execArgs") != launchArguments) {
-                shortcut.putExtra("execArgs", launchArguments)
-                shortcut.saveData()
-            }
-            launchStatus.record(
-                "DISPLAY",
-                "WFC upper-screen profile verified at ${selectedResolution.containerValue}; " +
-                    "mode=windowed native=${display.nativeResolution} " +
-                    "registry=${display.userRegistry.absolutePath} " +
-                    "profile=${display.profile.absolutePath} changed=${display.changed} " +
-                    "args=$launchArguments",
-            )
-        }
-
-        if (!configurationLauncher && game.id == "dishonored") {
-            // Migrate the installed shortcut as well as new catalog installs.
-            // The native game parses these values before creating its viewport.
-            shortcut.putExtra("execArgs", game.launchArguments)
-            supportedGameGpuDriverId(game.id)?.let { shortcut.putExtra("rendererDriverId", it) }
-            shortcut.saveData()
-            launchStatus.record(
-                "DISPLAY",
-                "Dishonored windowed client=${selectedResolution.containerValue}; " +
-                    "top-screen client fitting enabled; args=${game.launchArguments}; " +
-                    "driver=${shortcut.getExtra("rendererDriverId")}; shared preset retained",
-            )
-        }
-
         withContext(Dispatchers.IO) {
             DualscreenStorage().exposeConfigurationFiles(container, game)
         }
@@ -500,28 +313,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         // installs. This keeps Wine's optional first-boot add-on dialogs from
         // blocking invisibly in front of the game.
         val launchEnvironment = supportedGameLaunchEnvironment(game.id)
-        val translatorExtras = supportedGameTranslatorExtras(game.id)
-        if (translatorExtras.isNotEmpty()) {
-            val removedOverride = if (game.id == "assassins-creed-ii") withContext(Dispatchers.IO) {
-                Ac2WowBox64Configuration.restorePerformance(container.rootDir)
-            } else false
-            translatorExtras.forEach { (key, value) -> shortcut.putExtra(key, value) }
-            shortcut.saveData()
-            launchStatus.record("TRANSLATOR", "${game.title}: FEXCore / ${translatorExtras["fexcorePreset"]}; removedAc2StartupOverride=$removedOverride; preSpawnAffinity=${translatorExtras["affinityBeforeLaunch"] == "1"}; shared container retained")
-        }
-        supportedGameDirectXConfig(game.id, shortcut.getExtra("dxwrapperConfig").ifBlank { container.dxWrapperConfig })?.let { config ->
-            shortcut.putExtra("dxwrapper", "dxvk+vkd3d")
-            shortcut.putExtra("dxwrapperConfig", config)
-            shortcut.saveData()
-            launchStatus.record("DIRECTX", "Dishonored uses DXVK 2.6.2 / VKD3D 2.9; shared preset retained")
-        }
-        supportedGameFexCoreVersion(game.id)?.let { version ->
-            if (shortcut.getExtra("fexcoreVersion") != version) {
-                shortcut.putExtra("fexcoreVersion", version)
-                shortcut.saveData()
-            }
-            launchStatus.record("TRANSLATOR", "${game.title} uses $version; shared container settings retained")
-        }
         if (shortcut.getExtra("envVars") != launchEnvironment) {
             shortcut.putExtra("envVars", launchEnvironment)
             shortcut.saveData()
@@ -545,104 +336,10 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             )
         }
 
-        val wfcPrerequisites = if (!configurationLauncher && game.id == "transformers-wfc") {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    WfcPrerequisiteConfiguration.prepare(
-                        container.rootDir,
-                        target,
-                        shortcut.path,
-                    )
-                }
-            }.getOrElse { failure ->
-                Log.e(TAG, "Could not verify the Transformers prerequisite payload", failure)
-                finishWithMessage("Transformers prerequisite setup failed: ${failure.message}")
-                return
-            }
-        } else {
-            null
-        }
-        val runtimeShortcut = if (wfcPrerequisites != null && !wfcPrerequisites.installed) {
-            val bootstrap = withContext(Dispatchers.IO) {
-                WfcPrerequisiteConfiguration.createBootstrapShortcut(
-                    container,
-                    shortcut,
-                    wfcPrerequisites,
-                )
-            }
-            launchStatus.record(
-                "PREREQUISITES",
-                "PhysX, Visual C++ 2005 SP1 x86, and DirectX require verified one-time setup; " +
-                    "bootstrap=${wfcPrerequisites.guestBootstrapPath} " +
-                    "receipt=${wfcPrerequisites.receipt.absolutePath}",
-            )
-            bootstrap
-        } else {
-            if (wfcPrerequisites != null) {
-                launchStatus.record(
-                    "PREREQUISITES",
-                    "Verified persistent PhysX, Visual C++ 2005 SP1 x86, and DirectX installation; " +
-                        "receipt=${wfcPrerequisites.receipt.absolutePath}",
-                )
-            }
-            shortcut
-        }
-
-        if (diagnosticsOnly) {
-            diagnosticCapture = DiagnosticGuestCapture(
-                File(checkNotNull(launchStatus.status.value).logFile).parentFile!!,
-                File(container.rootDir, ".wine/drive_c/users/xuser/Saved Games/Crysis3/Game.log"),
-                onError = { Log.w(TAG, "Crysis diagnostic capture failed", it) },
-            )
-        }
-        val capture = diagnosticCapture
-        guestOutputCallback = Callback<String> { line: String ->
-            if (capture != null) capture.offer(line) else launchStatus.guest(line)
-        }.also {
-            ProcessHelper.addDebugCallback(it)
-        }
-        if (diagnosticsOnly) {
-            launchStatus.record("DIAGNOSTICS", "Crysis-only Wine exception logging enabled; " +
-                "Skyrim's shared container retained; hash-locked compatibility patch and read-only native UI trial. " +
-                "Full-session output: guest-tail.log / guest-tail.1.log; engine log: Game-latest.log")
-            launchStatus.record("GAME_LOG", File(container.rootDir,
-                ".wine/drive_c/users/xuser/Saved Games/Crysis3/Game.log").absolutePath)
-        }
         updateStatus("INITIALIZING TESTED WINDOWS RUNTIME", "Preparing Wine, prefix, renderer and mounts")
-        /*
-         * Stardew is deliberately not the first process passed to Wine.
-         *
-         * The copied WEMU container which is known to work boots its hidden
-         * desktop/file-manager target first.  Once winhandler.exe completes
-         * its INIT handshake, WEMU submits Stardew through WinHandler; that
-         * path stages StardewCoreClrCompatibility's hidden VBS launcher and
-         * supplies the CoreCLR/FEX policy to the actual child.  Starting the
-         * executable as Wine's initial target bypassed that path entirely and
-         * left the process parked before .NET/XNA created a window.
-         *
-         * WemuSession starts wfm.exe first while retaining the real Shortcut.
-         * Keeping that object is essential: it carries Stardew's ICU/CoreCLR
-         * environment, executable identity, controller registry selection and
-         * renderer overrides. The real command is queued below after
-         * session.start(). WinHandler retains queued actions until the guest
-         * INIT packet arrives, so this is a readiness handshake, not a delay.
-         */
-        val deferredStardewLaunch = shouldUseDeferredStardewLaunch(game.id, configurationLauncher)
-        if (deferredStardewLaunch) {
-            launchStatus.record(
-                "PROCESS",
-                "Stardew two-stage launch selected: bootstrap=wfm.exe target=${shortcut.path} " +
-                    "shortcutContext=retained bridge=WinHandler/CoreCLR",
-            )
-        }
-        val session = WemuRuntimeEngine.INSTANCE.createSession(this, this, container, runtimeShortcut)
-        session.setShortcutLaunchDeferred(deferredStardewLaunch)
+        val session = WemuRuntimeEngine.INSTANCE.createSession(this, this, container, shortcut)
         runtime = session
         refreshSecondaryDisplay()
-        if (game.id == "skyrim-se") {
-            session.setSkyrimAudioCompatibility(true)
-            session.setAudioGainDb(6f)
-        }
         session.setTerminationListener { status ->
             val elapsed = android.os.SystemClock.elapsedRealtime() - launchStartedAt
             Log.i(TAG, "Runtime termination: status=$status elapsedMs=$elapsed gameWindow=${gameWindowVisible.get()}")
@@ -671,21 +368,13 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         )
         attachRenderer(xServer, session, game)
         watchForGameWindow(xServer, game, configurationLauncher)
-        val installingWfcPrerequisites = wfcPrerequisites != null && !wfcPrerequisites.installed
         updateStatus(
-            if (installingWfcPrerequisites) {
-                "INSTALLING REQUIRED WINDOWS COMPONENTS"
-            } else if (configurationLauncher) {
+            if (configurationLauncher) {
                 "STARTING ${game.title.uppercase(Locale.ROOT)} LAUNCHER"
             } else {
                 "STARTING ${game.title.uppercase(Locale.ROOT)}"
             },
-            if (installingWfcPrerequisites) {
-                "First-time setup can take several minutes. Keep this screen open while " +
-                    "PhysX, Visual C++, and DirectX are installed."
-            } else {
-                "Submitting the final guest command"
-            },
+            "Submitting the final guest command",
         )
 
         val started = withContext(Dispatchers.IO) { runCatching { session.start() } }
@@ -695,62 +384,9 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             finishWithMessage(failure?.message ?: "The game could not be started")
             return
         }
-        if (wfcPrerequisites != null && !wfcPrerequisites.installed) {
-            monitorWfcPrerequisiteBootstrap(container, wfcPrerequisites)
-        }
-        if (deferredStardewLaunch) {
-            val command = deferredGuestCommand(shortcut.path, shortcut.getExtra("execArgs"))
-            session.winHandler.exec(command)
-            launchStatus.record(
-                "PROCESS",
-                "Queued target through WinHandler; command=$command " +
-                    "dispatch=after-guest-INIT coreclr=hidden-vbs",
-            )
-        }
         runCatching { preset.markLaunchMaterialized(container) }
             .onFailure { Log.e(TAG, "Could not record runtime materialization", it) }
         launchStatus.record("PROCESS", "Process creation returned successfully; waiting for the game window")
-    }
-
-    private fun monitorWfcPrerequisiteBootstrap(
-        container: Container,
-        preparation: WfcPrerequisiteConfiguration.Preparation,
-    ) {
-        lifecycleScope.launch {
-            val deadline = android.os.SystemClock.elapsedRealtime() + WFC_PREREQUISITE_TIMEOUT_MS
-            while (!isFinishing && android.os.SystemClock.elapsedRealtime() < deadline) {
-                val result = withContext(Dispatchers.IO) {
-                    when {
-                        preparation.failure.isFile ->
-                            preparation.failure.readText().trim().ifBlank { "unknown installer error" }
-                        WfcPrerequisiteConfiguration.prerequisitesAreCurrent(container.rootDir) -> ""
-                        else -> null
-                    }
-                }
-                if (result == "") {
-                    launchStatus.record(
-                        "PREREQUISITES",
-                        "Installer exit codes, receipt revision, and installed component files verified; " +
-                            "TWFC launch released",
-                    )
-                    updateStatus(
-                        "STARTING TRANSFORMERS: WAR FOR CYBERTRON",
-                        "Required Windows components verified",
-                    )
-                    return@launch
-                }
-                if (result != null) {
-                    withContext(Dispatchers.IO) { runtime?.stop() }
-                    finishWithMessage("Transformers prerequisite installation failed: $result")
-                    return@launch
-                }
-                delay(500)
-            }
-            if (!isFinishing) {
-                withContext(Dispatchers.IO) { runtime?.stop() }
-                finishWithMessage("Transformers prerequisite installation timed out before verification")
-            }
-        }
     }
 
     private fun attachRenderer(xServer: XServer, session: RuntimeSession, game: SupportedGame) {
@@ -759,14 +395,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         root.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
         val renderer = view.renderer
         session.configureRenderer(renderer)
-        if (game.id == "dishonored") {
-            // Wine centers this decorated client in the 1280x1800 desktop.
-            // Fit/crop its client using the existing renderer, preserving the
-            // lower panel's independent surface and the game's windowed D3D9
-            // device. This is session-local: WFC's shared fit setting stays 0.
-            renderer.setFitGuestWindow(true)
-            launchStatus.record("DISPLAY", "Dishonored top-screen client fitting applied")
-        }
         xServer.setRenderer(renderer)
 
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
@@ -829,81 +457,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
         game: SupportedGame,
         configurationLauncher: Boolean,
     ) {
-        fun restoreWfcFocusAfterPanelMapping() {
-            if (game.id != "transformers-wfc" ||
-                !gameWindowVisible.get() ||
-                !wfcPanelWindowSeen.get() ||
-                !wfcPostPanelFocusScheduled.compareAndSet(false, true)
-            ) return
-            // The lower-panel HWND is deliberately non-activating, but Wine can
-            // still leave its Win32 foreground bookkeeping on the newly mapped
-            // window. WFC then ignores an already-connected XInput controller
-            // until the player clicks the upper window. Restore the same proven
-            // game-window focus handoff once, after the panel has settled.
-            listOf(400L to "panel", 5_200L to "final-game-client").forEach { (delay, phase) ->
-                mainHandler.postDelayed({
-                    if (!isFinishing) {
-                        focusGameWindowForKeyboard(xServer)
-                        launchStatus.record(
-                            "INPUT",
-                            "WFC game focus restored after $phase mapping",
-                        )
-                    }
-                }, delay)
-            }
-        }
-
-        fun discoverWfcPanelAfterRendererClaim() {
-            if (game.id != "transformers-wfc" ||
-                wfcPostPanelFocusScheduled.get() ||
-                !wfcPanelFocusCheckScheduled.compareAndSet(false, true)
-            ) return
-            // The renderer may classify the native panel after this activity's
-            // window-content listener has already seen the same frame. Check
-            // the published claim just after dispatch instead of depending on
-            // listener registration order.
-            mainHandler.postDelayed({
-                wfcPanelFocusCheckScheduled.set(false)
-                if (SecondScreenOutput.isTransformersWfcPanelActive()) {
-                    wfcPanelWindowSeen.set(true)
-                    restoreWfcFocusAfterPanelMapping()
-                }
-            }, 100L)
-        }
-
-        fun focusWfcAfterNativeViewportResize(window: Window, resized: Boolean) {
-            if (game.id != "transformers-wfc" || !resized ||
-                window.width.toInt() != 1280 || window.height.toInt() != 720 ||
-                !window.attributes.isMapped || !window.attributes.isEnabled ||
-                SecondScreenOutput.isEarlyClaimPanelWindow(window)
-            ) return
-            val identity = "${window.name} ${window.className}".lowercase(Locale.ROOT)
-            if (!matchesDirectExecutableWindow(identity, game) ||
-                !wfcNativeViewportFocusScheduled.compareAndSet(false, true)
-            ) return
-
-            // The mod's borderless correction causes Wine to publish a new
-            // 1280x720 GPU-backed client after the old 640x480 window has
-            // already received our startup focus handoff. That late geometry
-            // transition is the authoritative point at which to focus WFC.
-            // Use this exact window as the target, then let one X dispatch
-            // cycle finish before pairing X11 focus with Win32 activation.
-            keyboardTargetWindow = window
-            keyboardTargetScore = 110
-            keyboardTargetIdentity = identity
-            keyboardFocusLogged.set(false)
-            mainHandler.postDelayed({
-                if (!isFinishing) {
-                    val focused = focusGameWindowForKeyboard(xServer)
-                    launchStatus.record(
-                        "INPUT",
-                        "WFC native 1280x720 client focus handoff completed " +
-                            "window=${window.id} x11Verified=$focused",
-                    )
-                }
-            }, 150L)
-        }
-
         fun observe(window: Window) {
             if (!window.attributes.isMapped) return
             // Native lower-panel titles deliberately include the game name, so
@@ -911,13 +464,7 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
             // matches the mod window. That window proves the mod initialized,
             // not that the playable upper window exists. Keep the launch cover
             // up until a non-panel game window is actually mapped.
-            if (SecondScreenOutput.isEarlyClaimPanelWindow(window)) {
-                if (game.id == "transformers-wfc") {
-                    wfcPanelWindowSeen.set(true)
-                    restoreWfcFocusAfterPanelMapping()
-                }
-                return
-            }
+            if (SecondScreenOutput.isEarlyClaimPanelWindow(window)) return
             val identity = "${window.name} ${window.className}".lowercase(Locale.ROOT)
             if (!matchesSessionWindow(identity, game, configurationLauncher)) return
 
@@ -950,20 +497,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
                         "directExecutable=$directExecutableMatch window=${window.id}",
                 )
             }
-            if (game.id == "transformers-wfc" && directExecutableMatch &&
-                gameInputFocusEstablished.compareAndSet(false, true)
-            ) {
-                // WFC creates its D3D client without reliably promoting it from
-                // Wine's explorer desktop. WEMU fixes the same condition by
-                // focusing the recognised top-level game window once. Without
-                // this handoff XInput is already connected, but WFC ignores it
-                // until the player clicks the upper window manually.
-                focusGameWindowForKeyboard(xServer)
-                launchStatus.record(
-                    "INPUT",
-                    "WFC game window received initial X11/Win32 foreground handoff",
-                )
-            }
             if (gameWindowVisible.compareAndSet(false, true)) {
                 runOnUiThread {
                     // Diagnostic sessions must retain the crash, not just startup.
@@ -982,7 +515,6 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
                     root.invalidate()
                 }
             }
-            restoreWfcFocusAfterPanelMapping()
         }
 
         windowListener = object : WindowManager.OnWindowModificationListener {
@@ -1000,12 +532,9 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
                     launchStatus.record("INPUT", "Guest cursor enabled after first window draw")
                 }
                 observe(window)
-                discoverWfcPanelAfterRendererClaim()
             }
-            override fun onUpdateWindowGeometry(window: Window, resized: Boolean) {
+            override fun onUpdateWindowGeometry(window: Window, resized: Boolean) =
                 observe(window)
-                focusWfcAfterNativeViewportResize(window, resized)
-            }
             override fun onModifyWindowProperty(window: Window, property: com.wemu.engine.xserver.Property) =
                 observe(window)
         }.also(xServer.windowManager::addOnWindowModificationListener)
@@ -1549,25 +1078,11 @@ class GameSessionActivity : AppCompatActivity(), XServerHost {
 
     companion object {
         private const val TAG = "DualScreenGameLaunch"
-        private const val WFC_PREREQUISITE_TIMEOUT_MS = 15 * 60 * 1000L
         private const val NATIVE_PANEL_TRIGGER_THRESHOLD = 0.55f
         const val EXTRA_GAME_ID = "gameId"
         const val EXTRA_CONTAINER_ID = "containerId"
         const val EXTRA_SHORTCUT_PATH = "shortcutPath"
         const val EXTRA_CONFIGURATION_LAUNCHER = "configurationLauncher"
-    }
-}
-
-internal fun shouldUseDeferredStardewLaunch(gameId: String, configurationLauncher: Boolean): Boolean =
-    gameId == "stardew-valley" && !configurationLauncher
-
-internal fun deferredGuestCommand(path: String, execArgs: String): String = buildString {
-    append('"')
-    append(path.trim().trim('"'))
-    append('"')
-    if (execArgs.isNotBlank()) {
-        append(' ')
-        append(execArgs.trim())
     }
 }
 

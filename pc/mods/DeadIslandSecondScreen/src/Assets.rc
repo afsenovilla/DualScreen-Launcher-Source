@@ -1,6 +1,0 @@
-#include <windows.h>
-
-101 RCDATA "../assets/skills.dds"
-102 RCDATA "../assets/skills.scr"
-103 RCDATA "../assets/hud.dds"
-104 RCDATA "../assets/hud.scr"

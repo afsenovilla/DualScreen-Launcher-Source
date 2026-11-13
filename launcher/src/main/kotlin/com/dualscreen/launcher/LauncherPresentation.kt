@@ -48,46 +48,12 @@ internal fun modUpdateFraction(progress: InstallProgress?): Float {
 }
 
 internal fun gameArtwork(gameId: String): Int = when (gameId) {
-    "skyrim-se" -> R.drawable.art_skyrim
-    "crysis3" -> R.drawable.art_crysis3
-    "assassins-creed-ii" -> R.drawable.art_assassins_creed_ii
-    "dishonored" -> R.drawable.art_dishonored
-    "fallout3" -> R.drawable.art_fallout3
-    "fallout4" -> R.drawable.art_fallout4
-    "grim-dawn" -> R.drawable.art_grim_dawn
-    "transformers-wfc" -> R.drawable.art_transformers_wfc
-    "deus-ex-hrdc" -> R.drawable.art_deus_ex
-    "dead-island-de" -> R.drawable.art_dead_island
     "isaac-repentance" -> R.drawable.art_isaac
-    "valheim" -> R.drawable.art_valheim
-    "stardew-valley" -> R.drawable.art_stardew
-    else -> R.drawable.ic_launcher
-}
-
-internal fun switchGameArtwork(gameId: String): Int = when (gameId) {
-    "mario-kart-8-deluxe" -> R.drawable.art_switch_mario_kart_8
-    "breath-of-the-wild" -> R.drawable.art_switch_botw
-    "pokemon-legends-za" -> R.drawable.art_switch_pokemon_za
-    "skyward-sword-hd" -> R.drawable.art_switch_skyward_sword
-    "xenoblade-chronicles-x" -> R.drawable.art_switch_xenoblade_x
-    "super-mario-odyssey" -> R.drawable.art_switch_mario_odyssey
     else -> R.drawable.ic_launcher
 }
 
 internal fun gameShortTitle(gameId: String): String = when (gameId) {
-    "skyrim-se" -> "Skyrim Special Edition"
-    "crysis3" -> "Crysis 3"
-    "assassins-creed-ii" -> "Assassin's Creed II"
-    "dishonored" -> "Dishonored"
-    "fallout3" -> "Fallout 3"
-    "fallout4" -> "Fallout 4"
-    "grim-dawn" -> "Grim Dawn"
-    "transformers-wfc" -> "Transformers: War for Cybertron"
-    "deus-ex-hrdc" -> "Deus Ex: Human Revolution"
-    "dead-island-de" -> "Dead Island Definitive"
     "isaac-repentance" -> "Binding of Isaac: Repentance+"
-    "valheim" -> "Valheim"
-    "stardew-valley" -> "Stardew Valley"
     else -> gameId
 }
 

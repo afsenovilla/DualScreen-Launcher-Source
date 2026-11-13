@@ -12,42 +12,9 @@ val releaseSigningProperties = Properties().apply {
     }
 }
 
-val remotelyManagedPayloads = listOf(
-    "assassins-creed-ii",
-    "dishonored",
-    "dead-island-de",
-    "deus-ex-hrdc",
-    "fallout3",
-    "fallout4",
-    "grim-dawn",
-    "skyrim-se",
-    "stardew-valley",
-    "valheim",
-)
 val filteredLauncherAssets = layout.buildDirectory.dir("generated/filteredLauncherAssets")
-// Release-only overlay keeps a verified published WFC payload separate from
-// ongoing native-script work in the shared source/package directories.
-val wfcReleaseAssetsDirectory = providers.gradleProperty("wfcReleaseAssetsDir")
 val prepareFilteredLauncherAssets by tasks.registering(Sync::class) {
-    from(layout.projectDirectory.dir("src/main/assets")) {
-        remotelyManagedPayloads.forEach { gameId ->
-            exclude("mods/$gameId/payload/**")
-        }
-        exclude("mods/switch/**/payload/**")
-        // Ship the rebuilt WFC mod and skin with the APK. Only its unchanged,
-        // large prerequisite installers continue to come from the payload pack.
-        if (wfcReleaseAssetsDirectory.isPresent) {
-            exclude("mods/transformers-wfc/**")
-        } else {
-            exclude("mods/transformers-wfc/payload/prerequisites/**")
-        }
-    }
-    wfcReleaseAssetsDirectory.orNull?.let { directory ->
-        from(directory) {
-            into("mods/transformers-wfc")
-            exclude("payload/prerequisites/**")
-        }
-    }
+    from(layout.projectDirectory.dir("src/main/assets"))
     into(filteredLauncherAssets)
 }
 
@@ -101,8 +68,7 @@ android {
     androidResources { noCompress += listOf("tzst", "zst", "tgz", "so", "dat", "dll") }
     // AndroidSourceDirectorySet's exclude filter is not applied by AGP's asset
     // merger. Stage a filtered tree instead, otherwise stale native payloads
-    // silently ship inside every APK. Isaac and WFC intentionally bundle their
-    // current native mods and assets; WFC's redistributables remain remote.
+    // silently ship inside every APK. Isaac bundles its native mod and assets.
     sourceSets["main"].assets.setSrcDirs(listOf(filteredLauncherAssets.get().asFile))
     packaging { jniLibs { useLegacyPackaging = true } }
 }
@@ -118,7 +84,6 @@ dependencies {
     implementation(projects.core.model)
     implementation(projects.core.designsystem)
     implementation(projects.core.display)
-    implementation(projects.switch.edenRuntime)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

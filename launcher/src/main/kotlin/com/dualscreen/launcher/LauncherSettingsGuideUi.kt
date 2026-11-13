@@ -61,15 +61,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dualscreen.launcher.switch.SwitchOperationState
-import com.dualscreen.launcher.switch.SwitchSystemState
 
 @Composable
 internal fun SettingsPage(
     settings: LauncherSettings,
     installed: Map<String, InstalledGame>,
-    switchSystemState: SwitchSystemState,
-    switchOperation: SwitchOperationState,
     gpuDrivers: List<LauncherGpuDriver>,
     gpuDriverImportState: GpuDriverImportState,
     gpuDriverMessage: String?,
@@ -78,12 +74,6 @@ internal fun SettingsPage(
     onGpuDriver: (String) -> Unit,
     onImportGpuDriver: () -> Unit,
     onOpenPcDriverDownloader: () -> Unit,
-    onAddSwitchKeys: () -> Unit,
-    onAddSwitchFirmware: () -> Unit,
-    onAddSwitchGpuDriver: () -> Unit,
-    onSwitchGpuDriver: (String) -> Unit,
-    onOpenSwitchDriverDownloader: () -> Unit,
-    onOpenEdenGlobalSettings: () -> Unit,
 ) {
     val selectedDriver = gpuDrivers.firstOrNull { it.id == settings.gpuDriverId }
     Column(
@@ -247,111 +237,6 @@ internal fun SettingsPage(
                         }
                     }
                     DriverMessage(gpuDriverImportState, gpuDriverMessage)
-                }
-            }
-
-            item {
-                LauncherCard(modifier = Modifier.height(334.dp), compact = true) {
-                    SettingsSectionHeading(
-                        icon = Icons.Default.SportsEsports,
-                        title = "Nintendo Switch system",
-                        detail = "Production keys and firmware for embedded Eden DS",
-                    )
-                    PrimaryAction(
-                        label = "Eden global settings",
-                        icon = Icons.Default.SettingsApplications,
-                        onClick = onOpenEdenGlobalSettings,
-                        enabled = !switchOperation.running,
-                        primary = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    InformationRow(
-                        "Production keys",
-                        if (switchSystemState.keysPresent) "Installed" else "Required",
-                        emphasized = switchSystemState.keysPresent,
-                    )
-                    InformationRow(
-                        "Firmware",
-                        switchSystemState.firmwareVersion ?: "Not installed",
-                        emphasized = !switchSystemState.firmwareVersion.isNullOrBlank(),
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        PrimaryAction(
-                            label = if (switchSystemState.keysPresent) "Replace prod.keys" else "Add prod.keys",
-                            icon = Icons.Default.FolderOpen,
-                            onClick = onAddSwitchKeys,
-                            enabled = !switchOperation.running,
-                            modifier = Modifier.weight(1f),
-                        )
-                        PrimaryAction(
-                            label = "Install Firmware ZIP",
-                            icon = Icons.Default.FileDownload,
-                            onClick = onAddSwitchFirmware,
-                            enabled = !switchOperation.running,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    Text("SWITCH GPU DRIVERS", style = settingLabelStyle())
-                    Text(
-                        "Choose the default for the next Switch launch. Per-game driver overrides still apply.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 9.sp,
-                    )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(switchSystemState.gpuDrivers, key = { it.id }) { driver ->
-                            CompactChoice(
-                                label = buildString {
-                                    append(driver.name)
-                                    if (driver.version.isNotBlank()) append(" • ${driver.version}")
-                                },
-                                selected = driver.path == switchSystemState.selectedGpuDriverPath,
-                                onClick = { onSwitchGpuDriver(driver.path) },
-                                enabled = switchSystemState.initialized && !switchOperation.running,
-                                modifier = Modifier.width(224.dp).height(44.dp),
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        PrimaryAction(
-                            label = "Open Eden driver downloader",
-                            icon = Icons.Default.CloudDownload,
-                            onClick = onOpenSwitchDriverDownloader,
-                            enabled = !switchOperation.running,
-                            primary = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                        PrimaryAction(
-                            label = "Install driver ZIP",
-                            icon = Icons.Default.FileDownload,
-                            onClick = onAddSwitchGpuDriver,
-                            enabled = !switchOperation.running,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    if (switchOperation.gameId == null &&
-                        (switchOperation.running || switchOperation.error != null)
-                    ) {
-                        Text(
-                            switchOperation.error ?: switchOperation.detail,
-                            color = if (switchOperation.error == null) LauncherAccent else LauncherDanger,
-                            fontSize = 10.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (switchOperation.running) {
-                            LauncherProgress(
-                                switchOperation.fraction,
-                                Modifier.fillMaxWidth().height(4.dp),
-                            )
-                        }
-                    }
                 }
             }
 

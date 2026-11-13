@@ -40,14 +40,6 @@ class PresetContainerManager(private val context: Context) {
         val initialDriver = selectedDriver(baseProfile, specification)
         val profile = profileWithDriver(baseProfile, initialDriver)
         ComponentProvisioner(context).ensure(CapturedRuntimeRequirements.preset(profile), reporter)
-        supportedGameDirectXConfig(game.id, profile.getString("dxwrapperConfig"))?.let { config ->
-            ComponentProvisioner(context).ensure(CapturedRuntimeRequirements.directX(config), reporter)
-        }
-        supportedGameFexCoreVersion(game.id)?.let { version ->
-            // Provision the per-game translator without modifying the shared
-            // WFC profile or any of its other captured settings.
-            ComponentProvisioner(context).ensure(CapturedRuntimeRequirements.fexCore(version), reporter)
-        }
 
         val manager = withContext(Dispatchers.IO) { ContainerManager(context) }
         // A driver choice updates the tested container in place. It is not a
@@ -109,15 +101,7 @@ class PresetContainerManager(private val context: Context) {
     suspend fun applyGpuDriver(driverId: String): Boolean = withContext(Dispatchers.IO) {
         val selected = driverId.ifBlank { DEFAULT_CAPTURED_GPU_DRIVER }
         val manager = ContainerManager(context).apply { reload() }
-        val specifications = buildList {
-            add(DEFAULT_PRESET)
-            // The vendor/system Vulkan path is known to black-screen WFC on
-            // this device. Custom and bundled AdrenoTools choices are explicit
-            // user selections and may replace its safe captured Turnip default.
-            if (!selected.equals(DefaultVersion.WRAPPER, ignoreCase = true)) {
-                add(TRANSFORMERS_WFC_PRESET)
-            }
-        }
+        val specifications = listOf(DEFAULT_PRESET)
         specifications.all { specification ->
             val storedId = preferences.getInt(containerIdKey(specification), -1)
             if (storedId <= 0) return@all true
@@ -170,17 +154,7 @@ class PresetContainerManager(private val context: Context) {
             check(expectedId == container.id) {
                 "${game.title} is assigned to the wrong predefined container"
             }
-            supportedGameFexCoreVersion(game.id)?.let { version ->
-                ComponentProvisioner(context).ensure(CapturedRuntimeRequirements.fexCore(version)) { _, _, message ->
-                    reporter(message)
-                }
-            }
             val baseProfile = loadGamePreset(specification, game)
-            supportedGameDirectXConfig(game.id, baseProfile.getString("dxwrapperConfig"))?.let { config ->
-                ComponentProvisioner(context).ensure(CapturedRuntimeRequirements.directX(config)) { _, _, message ->
-                    reporter(message)
-                }
-            }
             val selectedDriver = selectedDriver(baseProfile, specification, container)
             ensureSelectedDriverAvailable(selectedDriver)
             val configurationChanged = synchronizePresetConfiguration(
@@ -251,13 +225,6 @@ class PresetContainerManager(private val context: Context) {
         )
         Shortcut(container, file).also { shortcut ->
             shortcut.putExtra("envVars", supportedGameLaunchEnvironment(game.id))
-            supportedGameTranslatorExtras(game.id).forEach { (key, value) -> shortcut.putExtra(key, value) }
-            supportedGameDirectXConfig(game.id, container.dxWrapperConfig)?.let { config ->
-                shortcut.putExtra("dxwrapper", "dxvk+vkd3d")
-                shortcut.putExtra("dxwrapperConfig", config)
-            }
-            supportedGameFexCoreVersion(game.id)?.let { shortcut.putExtra("fexcoreVersion", it) }
-            supportedGameGpuDriverId(game.id)?.let { shortcut.putExtra("rendererDriverId", it) }
             if (game.exclusiveXInput) {
                 shortcut.putExtra("inputType", "4")
                 shortcut.putExtra("exclusiveXInput", "1")
@@ -307,16 +274,9 @@ class PresetContainerManager(private val context: Context) {
     internal fun requiresDedicatedContainer(game: SupportedGame): Boolean =
         presetFor(game) != DEFAULT_PRESET
 
+    @Suppress("UNUSED_PARAMETER")
     private fun loadGamePreset(specification: PresetSpecification, game: SupportedGame): JSONObject =
-        loadPreset(specification).also { profile ->
-            // Explicit app-private baseline override. Apply at both prepare
-            // stages so preset synchronization cannot restore the tall desktop.
-            if (game.id == "dishonored" &&
-                File(context.filesDir, "dishonored-single-display").isFile
-            ) {
-                profile.getJSONObject("extraData").put("displaySecondScreen", "0")
-            }
-        }
+        loadPreset(specification)
 
     private fun loadPreset(specification: PresetSpecification): JSONObject {
         val text = runCatching {
@@ -436,33 +396,6 @@ class PresetContainerManager(private val context: Context) {
             expectedName = "games",
             allowGpuOverride = true,
         )
-        private val STARDEW_PRESET = PresetSpecification(
-            key = "stardew-proton9",
-            asset = "presets/stardew-proton9.json",
-            expectedName = "proton 9",
-            allowGpuOverride = false,
-        )
-        private val TRANSFORMERS_WFC_PRESET = PresetSpecification(
-            key = "transformers-wfc",
-            asset = "presets/transformers-wfc.json",
-            expectedName = "Transformers WFC",
-            // This is a separate prefix cloned from Stardew's known-good WEMU
-            // "Proton 9" configuration. Its Box64 0.4.2 package is pinned and
-            // verified, while ARM64EC execution deliberately follows WEMU's
-            // actual FEXCore/HODLL path.
-            // WFC's native panel uses the captured Proton 9 profile's real
-            // second RandR output. SecondScreenOutput routes that lower-monitor
-            // window into Android's bottom-panel Surface.
-            // Keep its captured Turnip choice locked too, otherwise an old
-            // WFC-only override silently defeats the compatibility baseline.
-            allowGpuOverride = false,
-            discardedExtraKeys = setOf(
-                "graphicsFpsPreset",
-                "graphicsSharpness",
-                "graphicsPostFXMode",
-                "graphicsFpsLimit",
-            ),
-        )
         private const val KEY_CONTAINER_ID = "containerId"
         private const val KEY_FINGERPRINT = "fingerprint"
         private const val KEY_MATERIALIZATION_REVISION = "companionPresetMaterialization"
@@ -470,12 +403,8 @@ class PresetContainerManager(private val context: Context) {
 
         internal fun presetKeyFor(game: SupportedGame): String = presetFor(game).key
 
-        private fun presetFor(game: SupportedGame): PresetSpecification = when (game.id) {
-            "stardew-valley" -> STARDEW_PRESET
-            // Dishonored shares WFC's actual Wine prefix and pinned graphics/runtime setup.
-            "transformers-wfc", "dishonored" -> TRANSFORMERS_WFC_PRESET
-            else -> DEFAULT_PRESET
-        }
+        @Suppress("UNUSED_PARAMETER")
+        private fun presetFor(game: SupportedGame): PresetSpecification = DEFAULT_PRESET
 
         private fun containerIdKey(specification: PresetSpecification): String =
             if (specification == DEFAULT_PRESET) KEY_CONTAINER_ID
@@ -551,35 +480,10 @@ private data class PresetSpecification(
  * which a game-only launcher deliberately hides and therefore cannot dismiss.
  */
 internal fun supportedGameLaunchEnvironment(gameId: String? = null): String {
+    // Isaac loads the dual-screen patch through a native winmm.dll proxy.
     val winmm = if (gameId == "isaac-repentance") ";winmm=n,b" else ""
-    val controller = if (gameId == "assassins-creed-ii") " FAKE_EVDEV_XBOX360=1" else ""
-    // User-authorized isolation candidate: Performance scheduling/ordering and
-    // caches, retaining Compatibility's full x87 precision. Landing is not yet
-    // verified with relaxed ordering; the known-good Compatibility build is kept.
-    val ac2Precision = if (gameId == "assassins-creed-ii")
-        " FEX_X87REDUCEDPRECISION=0 FEX_DYNAMICL1CACHE=1 FEX_DISABLEL2CACHE=0" else ""
-    // A shortcut-local setting, never persisted in Skyrim's shared container.
-    // No DEP policy or executable patch is implied by exception logging.
-    val diagnostics = if (gameId == "crysis3") " WINEDEBUG=-all,+timestamp,+pid,+tid,+seh" else ""
-    return "WINEDLLOVERRIDES=icu=n$winmm;mscoree=d;mshtml=d FAKE_EVDEV_LOG=1$controller$ac2Precision$diagnostics"
+    return "WINEDLLOVERRIDES=icu=n$winmm;mscoree=d;mshtml=d FAKE_EVDEV_LOG=1"
 }
-
-internal fun supportedGameTranslatorExtras(gameId: String): Map<String, String> =
-    if (gameId == "assassins-creed-ii") mapOf(
-        "ac2WowBox64" to "0", "emulator" to "FEXCore", "fexcorePreset" to "PERFORMANCE",
-        "box64Version" to "0.4.2", "box64Preset" to "PERFORMANCE",
-    ) else if (gameId == "crysis3") mapOf(
-        "emulator" to "FEXCore", "fexcorePreset" to "PERFORMANCE",
-        "affinityBeforeLaunch" to "1",
-    ) else emptyMap()
-
-/** A shortcut override; WFC's shared container continues to select its captured translator. */
-internal fun supportedGameFexCoreVersion(gameId: String): String? =
-    if (gameId == "dishonored") "FEXCore-2608-stable-0" else null
-
-/** The imported driver used by Dishonored's successful Thor launch; never changes WFC's preset. */
-internal fun supportedGameGpuDriverId(gameId: String): String? =
-    if (gameId == "dishonored") "Turnip A8XX Draft" else null
 
 /** Installs only the exact component ids named by the captured preset. */
 private class ComponentProvisioner(private val context: Context) {

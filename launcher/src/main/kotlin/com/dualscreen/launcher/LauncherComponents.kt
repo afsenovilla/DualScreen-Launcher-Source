@@ -74,7 +74,6 @@ internal val LauncherTextMuted = Color(0xFFA09D92)
 internal fun LauncherHeader(
     selected: LauncherNavItem,
     onPcGames: () -> Unit,
-    onSwitchGames: () -> Unit,
     onGuide: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -121,17 +120,10 @@ internal fun LauncherHeader(
         }
         Spacer(Modifier.weight(1f))
         HeaderDestination(
-            label = "PC Games",
+            label = "Games",
             icon = Icons.Default.SportsEsports,
             selected = selected == LauncherNavItem.PC_GAMES,
             onClick = onPcGames,
-        )
-        Spacer(Modifier.width(4.dp))
-        HeaderDestination(
-            label = "Switch Games",
-            icon = Icons.Default.Gamepad,
-            selected = selected == LauncherNavItem.SWITCH_GAMES,
-            onClick = onSwitchGames,
         )
         Spacer(Modifier.width(4.dp))
         HeaderDestination(

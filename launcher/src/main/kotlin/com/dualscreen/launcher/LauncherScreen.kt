@@ -38,34 +38,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dualscreen.launcher.switch.SwitchCatalog
-import com.dualscreen.launcher.switch.SwitchContentKind
-import com.dualscreen.launcher.switch.SwitchGameDefinition
 
 private sealed interface LauncherPage {
     data object PcGames : LauncherPage
-    data object SwitchGames : LauncherPage
     data class PcGameDetails(val gameId: String) : LauncherPage
-    data class SwitchGameDetails(val gameId: String) : LauncherPage
-    data class SwitchGameSettings(val gameId: String) : LauncherPage
-    data object SwitchGlobalSettings : LauncherPage
     data object PcDriverDownloader : LauncherPage
-    data class SwitchDriverDownloader(
-        val returnGameId: String? = null,
-        val returnToGlobalSettings: Boolean = false,
-    ) : LauncherPage
     data object Guide : LauncherPage
     data object Settings : LauncherPage
 }
 
-internal enum class LauncherNavItem { PC_GAMES, SWITCH_GAMES, GUIDE, SETTINGS }
+internal enum class LauncherNavItem { PC_GAMES, GUIDE, SETTINGS }
 
 @Composable
 internal fun LauncherScreen(
     model: LauncherViewModel,
     onPlay: (SupportedGame, InstalledGame) -> Unit,
     onConfigure: (SupportedGame, InstalledGame) -> Unit,
-    onPlaySwitch: (SwitchGameDefinition) -> Unit,
 ) {
     val installed by model.installed.collectAsStateWithLifecycle()
     val progress by model.progress.collectAsStateWithLifecycle()
@@ -78,37 +66,11 @@ internal fun LauncherScreen(
     val payloadState by model.payloadState.collectAsStateWithLifecycle()
     val updateState by model.updateState.collectAsStateWithLifecycle()
     val archiveReview by model.archiveReview.collectAsStateWithLifecycle()
-    val switchInstalled by model.switchInstallations.collectAsStateWithLifecycle()
-    val switchOperation by model.switchOperation.collectAsStateWithLifecycle()
-    val switchSystemState by model.switchSystemState.collectAsStateWithLifecycle()
     val operationBusy = progress.values.any(InstallProgress::running) ||
         saveProgress.values.any(SaveImportProgress::running)
     var pendingGame by remember { mutableStateOf<SupportedGame?>(null) }
     var pendingSaveGame by remember { mutableStateOf<Pair<SupportedGame, InstalledGame>?>(null) }
-    var pendingSwitchContent by remember {
-        mutableStateOf<Pair<SwitchGameDefinition, SwitchContentKind>?>(null)
-    }
-    var pendingSwitchMod by remember { mutableStateOf<SwitchGameDefinition?>(null) }
-    var switchModSelection by remember { mutableStateOf<Pair<SwitchGameDefinition, android.net.Uri>?>(null) }
-    var pendingSwitchSaveImport by remember { mutableStateOf<SwitchGameDefinition?>(null) }
-    var pendingSwitchSaveExport by remember { mutableStateOf<SwitchGameDefinition?>(null) }
     var page by remember { mutableStateOf<LauncherPage>(LauncherPage.PcGames) }
-
-    LaunchedEffect(page) {
-        val needsSwitchRuntime = when (page) {
-            LauncherPage.SwitchGames,
-            is LauncherPage.SwitchGameDetails,
-            is LauncherPage.SwitchGameSettings,
-            LauncherPage.SwitchGlobalSettings,
-            is LauncherPage.SwitchDriverDownloader,
-            LauncherPage.Settings,
-            -> true
-            else -> false
-        }
-        if (needsSwitchRuntime && !switchSystemState.initialized && !switchOperation.running) {
-            model.prepareSwitchSystem()
-        }
-    }
 
     val gameArchivePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val game = pendingGame
@@ -123,43 +85,6 @@ internal fun LauncherScreen(
     val gpuDriverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) model.importGpuDriver(uri)
     }
-    val switchContentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val pending = pendingSwitchContent
-        pendingSwitchContent = null
-        if (pending != null && uri != null) {
-            if (pending.second == SwitchContentKind.BASE) {
-                model.addSwitchBase(pending.first, uri)
-            } else {
-                model.installSwitchContent(pending.first, uri, pending.second)
-            }
-        }
-    }
-    val switchModPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        val game = pendingSwitchMod
-        pendingSwitchMod = null
-        if (game != null && uri != null) switchModSelection = game to uri
-    }
-    val switchSaveImportPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val game = pendingSwitchSaveImport
-        pendingSwitchSaveImport = null
-        if (game != null && uri != null) model.importSwitchSave(game, uri)
-    }
-    val switchSaveExportPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/zip"),
-    ) { uri ->
-        val game = pendingSwitchSaveExport
-        pendingSwitchSaveExport = null
-        if (game != null && uri != null) model.exportSwitchSave(game, uri)
-    }
-    val switchKeysPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) model.installSwitchKeys(uri)
-    }
-    val switchFirmwarePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) model.installSwitchFirmware(uri)
-    }
-    val switchGpuDriverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) model.installSwitchGpuDriver(uri)
-    }
 
     fun chooseGameArchive(game: SupportedGame) {
         pendingGame = game
@@ -171,48 +96,14 @@ internal fun LauncherScreen(
         saveArchivePicker.launch(arrayOf("application/zip", "application/x-zip-compressed"))
     }
 
-    fun chooseSwitchContent(game: SwitchGameDefinition, kind: SwitchContentKind) {
-        pendingSwitchContent = game to kind
-        switchContentPicker.launch(arrayOf("application/octet-stream", "*/*"))
-    }
-
-    fun chooseSwitchMod(game: SwitchGameDefinition) {
-        pendingSwitchMod = game
-        switchModPicker.launch(null)
-    }
-
     val selectedNavigation = when (page) {
         LauncherPage.PcGames,
         is LauncherPage.PcGameDetails,
         -> LauncherNavItem.PC_GAMES
-        LauncherPage.SwitchGames,
-        is LauncherPage.SwitchGameDetails,
-        is LauncherPage.SwitchGameSettings,
-        -> LauncherNavItem.SWITCH_GAMES
-        is LauncherPage.SwitchDriverDownloader -> if (
-            (page as LauncherPage.SwitchDriverDownloader).returnToGlobalSettings
-        ) {
-            LauncherNavItem.SETTINGS
-        } else {
-            LauncherNavItem.SWITCH_GAMES
-        }
         LauncherPage.Guide -> LauncherNavItem.GUIDE
         LauncherPage.Settings,
         LauncherPage.PcDriverDownloader,
-        LauncherPage.SwitchGlobalSettings,
         -> LauncherNavItem.SETTINGS
-    }
-
-    switchModSelection?.let { (game, uri) ->
-        SwitchModSelectionDialog(
-            selectionKey = "${game.id}:$uri",
-            loader = { model.discoverSwitchMods(game, uri) },
-            onDismiss = { switchModSelection = null },
-            onInstall = { selected ->
-                switchModSelection = null
-                model.installSwitchMods(game, uri, selected)
-            },
-        )
     }
 
     Surface(
@@ -232,7 +123,6 @@ internal fun LauncherScreen(
             LauncherHeader(
                 selected = selectedNavigation,
                 onPcGames = { page = LauncherPage.PcGames },
-                onSwitchGames = { page = LauncherPage.SwitchGames },
                 onGuide = { page = LauncherPage.Guide },
                 onSettings = { page = LauncherPage.Settings },
             )
@@ -276,12 +166,6 @@ internal fun LauncherScreen(
                         }
                     }
 
-                    LauncherPage.SwitchGames -> SwitchGamesPage(
-                        installed = switchInstalled,
-                        operation = switchOperation,
-                        onSelectGame = { page = LauncherPage.SwitchGameDetails(it.id) },
-                    )
-
                     is LauncherPage.PcGameDetails -> {
                         val game = GameCatalog.byId(destination.gameId)
                         if (game == null) {
@@ -306,101 +190,6 @@ internal fun LauncherScreen(
                         }
                     }
 
-                    is LauncherPage.SwitchGameDetails -> {
-                        val game = SwitchCatalog.byId(destination.gameId)
-                        if (game == null) {
-                            LaunchedEffect(destination.gameId) { page = LauncherPage.SwitchGames }
-                        } else {
-                            SwitchGameDetailsPage(
-                                game = game,
-                                installed = switchInstalled[game.id],
-                                operation = switchOperation,
-                                onBack = { page = LauncherPage.SwitchGames },
-                                onAddBase = { chooseSwitchContent(game, SwitchContentKind.BASE) },
-                                onAddUpdate = { chooseSwitchContent(game, SwitchContentKind.UPDATE) },
-                                onAddDlc = { chooseSwitchContent(game, SwitchContentKind.DLC) },
-                                onAddMod = { chooseSwitchMod(game) },
-                                onPlay = { onPlaySwitch(game) },
-                                onImportSave = {
-                                    pendingSwitchSaveImport = game
-                                    switchSaveImportPicker.launch(
-                                        arrayOf("application/zip", "application/x-zip-compressed"),
-                                    )
-                                },
-                                onExportSave = {
-                                    pendingSwitchSaveExport = game
-                                    switchSaveExportPicker.launch("${game.id}-save.zip")
-                                },
-                                onRefresh = { model.refreshSwitchGame(game) },
-                                onOpenSettings = { page = LauncherPage.SwitchGameSettings(game.id) },
-                                onPatchEnabled = { patch, enabled ->
-                                    model.setSwitchPatchEnabled(game, patch.name, enabled)
-                                },
-                                onRemovePatch = { model.removeSwitchPatch(game, it) },
-                            )
-                        }
-                    }
-
-                    is LauncherPage.SwitchGameSettings -> {
-                        val game = SwitchCatalog.byId(destination.gameId)
-                        if (game == null || switchInstalled[game.id] == null) {
-                            LaunchedEffect(destination.gameId) {
-                                page = if (game == null) LauncherPage.SwitchGames
-                                else LauncherPage.SwitchGameDetails(game.id)
-                            }
-                        } else {
-                            SwitchGameSettingsPage(
-                                game = game,
-                                operation = switchOperation,
-                                systemState = switchSystemState,
-                                loader = { model.readSwitchSettings(game) },
-                                onSave = { model.saveSwitchSettings(game, it) },
-                                onDriverSelected = { model.selectSwitchGpuDriver(game, it) },
-                                onOpenDriverDownloader = {
-                                    page = LauncherPage.SwitchDriverDownloader(game.id)
-                                },
-                                onImportDriver = {
-                                    switchGpuDriverPicker.launch(
-                                        arrayOf("application/zip", "application/x-zip-compressed"),
-                                    )
-                                },
-                                onBack = { page = LauncherPage.SwitchGameDetails(game.id) },
-                            )
-                        }
-                    }
-
-                    LauncherPage.SwitchGlobalSettings -> SwitchGlobalSettingsPage(
-                        operation = switchOperation,
-                        systemState = switchSystemState,
-                        loader = model::readSwitchGlobalSettings,
-                        onSave = model::saveSwitchGlobalSettings,
-                        onDriverSelected = model::selectSwitchGlobalGpuDriver,
-                        onOpenDriverDownloader = {
-                            page = LauncherPage.SwitchDriverDownloader(returnToGlobalSettings = true)
-                        },
-                        onImportDriver = {
-                            switchGpuDriverPicker.launch(
-                                arrayOf("application/zip", "application/x-zip-compressed"),
-                            )
-                        },
-                        onBack = { page = LauncherPage.Settings },
-                    )
-
-                    is LauncherPage.SwitchDriverDownloader -> SwitchDriverDownloaderPage(
-                        operation = switchOperation,
-                        systemState = switchSystemState,
-                        loader = model::fetchSwitchGpuDrivers,
-                        onInstall = model::downloadSwitchGpuDriver,
-                        onBack = {
-                            page = when {
-                                destination.returnToGlobalSettings -> LauncherPage.SwitchGlobalSettings
-                                destination.returnGameId != null ->
-                                    LauncherPage.SwitchGameSettings(destination.returnGameId)
-                                else -> LauncherPage.Settings
-                            }
-                        },
-                    )
-
                     LauncherPage.PcDriverDownloader -> PcDriverDownloaderPage(
                         operation = pcGpuDriverOperation,
                         installedCount = gpuDrivers.count {
@@ -418,8 +207,6 @@ internal fun LauncherScreen(
                     LauncherPage.Settings -> SettingsPage(
                         settings = settings,
                         installed = installed,
-                        switchSystemState = switchSystemState,
-                        switchOperation = switchOperation,
                         gpuDrivers = gpuDrivers,
                         gpuDriverImportState = gpuDriverImportState,
                         gpuDriverMessage = gpuDriverMessage,
@@ -433,24 +220,6 @@ internal fun LauncherScreen(
                         },
                         onOpenPcDriverDownloader = {
                             page = LauncherPage.PcDriverDownloader
-                        },
-                        onAddSwitchKeys = { switchKeysPicker.launch(arrayOf("*/*")) },
-                        onAddSwitchFirmware = {
-                            switchFirmwarePicker.launch(
-                                arrayOf("application/zip", "application/x-zip-compressed"),
-                            )
-                        },
-                        onAddSwitchGpuDriver = {
-                            switchGpuDriverPicker.launch(
-                                arrayOf("application/zip", "application/x-zip-compressed"),
-                            )
-                        },
-                        onSwitchGpuDriver = model::selectSwitchGlobalGpuDriver,
-                        onOpenSwitchDriverDownloader = {
-                            page = LauncherPage.SwitchDriverDownloader()
-                        },
-                        onOpenEdenGlobalSettings = {
-                            page = LauncherPage.SwitchGlobalSettings
                         },
                     )
                 }
@@ -467,14 +236,9 @@ internal fun LauncherScreen(
 private fun launcherPageRank(page: LauncherPage): Int = when (page) {
     LauncherPage.PcGames -> 0
     is LauncherPage.PcGameDetails -> 1
-    LauncherPage.SwitchGames -> 2
-    is LauncherPage.SwitchGameDetails -> 3
-    is LauncherPage.SwitchGameSettings -> 4
-    LauncherPage.SwitchGlobalSettings -> 5
-    is LauncherPage.SwitchDriverDownloader -> 6
-    LauncherPage.PcDriverDownloader -> 7
-    LauncherPage.Guide -> 8
-    LauncherPage.Settings -> 9
+    LauncherPage.PcDriverDownloader -> 2
+    LauncherPage.Guide -> 3
+    LauncherPage.Settings -> 4
 }
 
 @Composable

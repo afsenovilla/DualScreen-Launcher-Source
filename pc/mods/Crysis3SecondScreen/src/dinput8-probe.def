@@ -1,8 +1,0 @@
-LIBRARY dinput8
-EXPORTS
-    Crysis3ResearchProbeIdentity=Crysis3ResearchProbeIdentity@0
-    DirectInput8Create=Crysis3DirectInput8Create@20
-    DllCanUnloadNow=Crysis3DllCanUnloadNow@0
-    DllGetClassObject=Crysis3DllGetClassObject@12
-    DllRegisterServer=Crysis3DllRegisterServer@0
-    DllUnregisterServer=Crysis3DllUnregisterServer@0

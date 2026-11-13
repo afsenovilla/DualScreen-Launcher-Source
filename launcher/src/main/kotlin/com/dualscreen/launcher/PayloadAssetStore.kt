@@ -26,7 +26,6 @@ internal object PayloadAssetStore {
 
     fun open(context: Context, relativePath: String): InputStream {
         val normalized = normalize(relativePath)
-        OnDemandGamePayloads.open(context, normalized)?.let { return it }
         val root = root(context).canonicalFile
         val downloaded = File(root, normalized).canonicalFile
         check(downloaded.path.startsWith(root.path + File.separator)) {
@@ -78,11 +77,14 @@ internal object PayloadAssetStore {
     }
 }
 
-/** Visible for the payload precedence regression tests. */
+/**
+ * The only supported game's dual-screen mod ships inside the APK. A downloaded
+ * payload catalog must never replace it (an upstream pack would carry a native
+ * patch built for a different set of accepted executables).
+ */
+@Suppress("UNUSED_PARAMETER")
 internal fun shouldPreferBundledModAsset(
     normalizedPath: String,
     storedCatalogVersion: String?,
     embeddedCatalogVersion: String,
-): Boolean = normalizedPath.startsWith("mods/") &&
-    (storedCatalogVersion == null ||
-        !isNewerVersion(storedCatalogVersion, embeddedCatalogVersion))
+): Boolean = normalizedPath.startsWith("mods/")

@@ -87,14 +87,14 @@ class PayloadBootstrapTest {
     }
 
     @Test
-    fun newerRemoteCatalogStillOverridesBundledMod() {
+    fun newerRemoteCatalogNeverOverridesBundledMod() {
         assertThat(
             shouldPreferBundledModAsset(
-                normalizedPath = "mods/transformers-wfc/payload/dinput8.dll",
+                normalizedPath = "mods/isaac-repentance/payload/native/winmm.dll",
                 storedCatalogVersion = "2026.09.03.1",
                 embeddedCatalogVersion = "2026.09.02.12",
             ),
-        ).isFalse()
+        ).isTrue()
     }
 
     @Test

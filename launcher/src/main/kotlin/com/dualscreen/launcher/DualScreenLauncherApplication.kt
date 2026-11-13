@@ -1,7 +1,6 @@
 package com.dualscreen.launcher
 
 import android.app.Application
-import com.dualscreen.launcher.switch.EdenSwitchBackend
 
 class DualScreenLauncherApplication : Application() {
     val settings by lazy { LauncherSettingsStore(this) }
@@ -12,5 +11,4 @@ class DualScreenLauncherApplication : Application() {
     val installer by lazy { GameInstaller(this, registry) }
     val saveImporter by lazy { SaveImporter(this) }
     val launchStatus by lazy { LaunchStatusStore(this) }
-    val switchBackend by lazy { EdenSwitchBackend(this) }
 }

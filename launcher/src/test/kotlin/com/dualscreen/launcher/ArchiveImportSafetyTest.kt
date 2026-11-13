@@ -82,14 +82,14 @@ class ArchiveImportSafetyTest {
 
     @Test
     fun untestedBuildMessageWarnsWithoutCallingTheArchiveInvalid() {
-        val game = checkNotNull(GameCatalog.byId("fallout3"))
+        val game = checkNotNull(GameCatalog.byId("isaac-repentance"))
         val message = untestedVersionMessage(
             game,
-            listOf("Fallout3.exe differs from the recommended build"),
+            listOf("isaac-ng.exe differs from the recommended build"),
         )
         assertThat(message).contains("has not been tested")
         assertThat(message).contains("For the best compatibility")
-        assertThat(message).contains("Fallout 3 1.7.0.4")
+        assertThat(message).contains("1.9.7.17.J460")
     }
 
     @Test

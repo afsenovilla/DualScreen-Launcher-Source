@@ -3,9 +3,6 @@ package com.dualscreen.launcher
 import android.app.Application
 import android.content.Context
 import android.net.Uri
-import com.dualscreen.launcher.switch.EdenDriverRepository
-import com.dualscreen.launcher.switch.SwitchDriverArtifact
-import com.dualscreen.launcher.switch.SwitchDriverRelease
 import com.thor.core.common.log.ThorLog
 import com.wemu.engine.contents.AdrenotoolsManager
 import com.wemu.engine.contents.BundledContents
@@ -58,7 +55,7 @@ class LauncherGpuDrivers(
 ) {
     private val appContext = context.applicationContext
     private val manager = AdrenotoolsManager(appContext)
-    private val repository = EdenDriverRepository(appContext as Application)
+    private val repository = GpuDriverRepository(appContext as Application)
     private val repositoryPreferences =
         appContext.getSharedPreferences("pc_gpu_driver_catalog", Context.MODE_PRIVATE)
     private val repositoryLock = Mutex()
@@ -106,14 +103,14 @@ class LauncherGpuDrivers(
         }
     }
 
-    suspend fun fetchReleases(): Result<List<SwitchDriverRelease>> = runCatching {
+    suspend fun fetchReleases(): Result<List<GpuDriverRelease>> = runCatching {
         repositoryLock.withLock {
             repository.fetch(installedRepositoryArtifacts())
         }
     }
 
     /** Downloads, validates, installs, and returns the selected PC driver id. */
-    suspend fun downloadAndInstall(artifact: SwitchDriverArtifact): Result<String> =
+    suspend fun downloadAndInstall(artifact: GpuDriverArtifact): Result<String> =
         repositoryLock.withLock {
             _operation.value = PcGpuDriverOperationState(
                 running = true,

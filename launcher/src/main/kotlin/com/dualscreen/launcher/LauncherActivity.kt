@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.view.View
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.lifecycleScope
 import com.dualscreen.launcher.session.GameSessionActivity
-import com.dualscreen.launcher.switch.SwitchGameDefinition
 import com.thor.core.display.DisplayTopology
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -45,7 +43,6 @@ class LauncherActivity : ComponentActivity() {
                     model = model,
                     onPlay = { game, installed -> launch(game, installed, configuration = false) },
                     onConfigure = { game, installed -> launch(game, installed, configuration = true) },
-                    onPlaySwitch = ::launchSwitch,
                 )
             }
         }
@@ -166,21 +163,6 @@ class LauncherActivity : ComponentActivity() {
                 .putExtra(GameSessionActivity.EXTRA_SHORTCUT_PATH, installed.shortcutPath)
                 .putExtra(GameSessionActivity.EXTRA_CONFIGURATION_LAUNCHER, configuration),
         )
-    }
-
-    private fun launchSwitch(game: SwitchGameDefinition) {
-        lifecycleScope.launch {
-            val result = (application as DualScreenLauncherApplication)
-                .switchBackend
-                .createLaunchIntent(game)
-            result.onSuccess(::startActivity).onFailure { failure ->
-                Toast.makeText(
-                    this@LauncherActivity,
-                    failure.message ?: "Could not start ${game.title}",
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-        }
     }
 
     companion object {
